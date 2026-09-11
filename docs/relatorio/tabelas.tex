@@ -1,0 +1,186 @@
+\newcommand{\tabcustodia}{%
+\begin{tabular}{@{}lrrrrrrrr@{}}
+\toprule
+dia & A (base) & B (+VPL) & C (+VDC) & D (ambos) & $\Delta_B$ & $\Delta_C$ & $\Delta_D$ & $I$ \\
+\midrule
+primavera (vento alto) & 684,7 & 611,3 & 660,2 & 586,2 & 73,4 & 24,5 & 98,5 & 0,6 \\
+pico de verão & 2\,770,7 & 2\,698,7 & 2\,750,5 & 2\,679,8 & 72,1 & 20,3 & 90,9 & -1,5 \\
+rampa solar & 1\,399,8 & 1\,313,1 & 1\,373,4 & 1\,291,5 & 86,7 & 26,4 & 108,3 & -4,8 \\
+mediano & 1\,593,9 & 1\,519,8 & 1\,568,0 & 1\,493,3 & 74,1 & 25,9 & 100,6 & 0,6 \\
+média & 1\,612,3 & 1\,535,7 & 1\,588,0 & 1\,512,7 & 76,6 & 24,3 & 99,6 & -1,3 \\
+\bottomrule
+\end{tabular}}
+
+\newcommand{\taboperacional}{%
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+métrica & A (base) & B (+VPL) & C (+VDC) & D (ambos) \\
+\midrule
+custo (k\$) & 1\,612,3 & 1\,535,7 & 1\,588,0 & 1\,512,7 \\
+curtail. (MWh) & 20\,463,8 & 18\,907,2 & 19\,709,9 & 18\,056,9 \\
+curtail. (\%) & 21,7 & 19,5 & 20,7 & 18,4 \\
+partidas & 17,2 & 11,8 & 9,5 & 10,2 \\
+h em Pmin & 260,8 & 249,2 & 246,5 & 242,5 \\
+h congest. & 9,5 & 12,8 & 12,2 & 12,5 \\
+spread (\$/MWh) & 4,1 & 5,0 & 5,1 & 5,4 \\
+cap. virtual (MWh) & 0,0 & 269,4 & 0,0 & 282,9 \\
+CO$_2$ (t) & 43\,206,4 & 42\,636,6 & 42\,595,3 & 42\,024,1 \\
+\bottomrule
+\end{tabular}}
+
+\newcommand{\tabpenetracao}{%
+\begin{tabular}{@{}lrrrrrrc@{}}
+\toprule
+VRE & A (k\$) & $\Delta_B$ & $\Delta_C$ & $\Delta_D$ & $I$ & ruído & $I<0$ \\
+\midrule
+30\% & 1\,948,7 & 56,8 & 18,2 & 66,7 & -8,3 & 2,6 & 4/4 \\
+50\% & 1\,612,3 & 76,6 & 24,3 & 99,6 & -1,3 & 2,3 & 2/4 \\
+70\% & 1\,444,7 & 81,8 & 29,0 & 107,7 & -3,1 & 2,3 & 4/4 \\
+\bottomrule
+\end{tabular}}
+
+\newcommand{\tabsensibilidades}{%
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+variação & $\Delta_B$ & $\Delta_C$ & $\Delta_D$ & $I$ \\
+\midrule
+base (200 MW, $f_d$=0,5) & 76,6 & 24,3 & 99,6 & -1,3 \\
+VRE 30\% & 56,8 & 18,2 & 66,7 & -8,3 \\
+VRE 70\% & 81,8 & 29,0 & 107,7 & -3,1 \\
+VPL 100 MW & 38,0 & --- & 63,7 & 1,4 \\
+VPL 400 MW & 141,5 & --- & 159,1 & -6,7 \\
+VPL 650 MW & 185,8 & --- & 193,8 & -16,3 \\
+$f_d$ = 0,2 & 78,6 & 11,3 & 88,6 & -1,3 \\
+$f_d$ = 0,8 & 75,7 & 37,2 & 111,8 & -1,1 \\
+janela $\times$0,5 & 76,0 & 8,0 & 82,7 & -1,3 \\
+janela $\times$2 & 76,5 & 33,2 & 108,2 & -1,4 \\
+migração $\times$0,5 & --- & 28,1 & 103,8 & -0,9 \\
+migração $\times$2 & --- & 20,2 & 95,6 & -1,2 \\
+reserva flexível & 76,8 & 27,0 & 103,6 & -0,1 \\
+VPL explícito & 44,3 & --- & 69,7 & 1,2 \\
+VPL dedicado & 40,0 & --- & 65,7 & 1,5 \\
+\bottomrule
+\end{tabular}}
+
+\newcommand{\tabdecomposicao}{%
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+dia & $\Delta_B$ (par) & só montante & só jusante & pareamento & \% \\
+\midrule
+primavera (vento alto) & 73,4 & 33,0 & 37,3 & 3,2 & 4,4 \\
+pico de verão & 72,1 & 43,1 & 28,5 & 0,5 & 0,7 \\
+rampa solar & 86,7 & 40,7 & 44,4 & 1,5 & 1,8 \\
+mediano & 74,1 & 33,7 & 33,4 & 6,9 & 9,3 \\
+média & 76,6 & 37,6 & 35,9 & 3,1 & 4,1 \\
+\bottomrule
+\end{tabular}}
+
+\newcommand{\tabsuperficie}{%
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+VPL/terminal & $f_d$=0,2 & $f_d$=0,5 & $f_d$=0,8 \\
+\midrule
+100 MW & -1,8 & 1,4 & -1,0 \\
+200 MW & -1,3 & -1,3 & -1,1 \\
+400 MW & -3,1 & -6,7 & -7,2 \\
+\bottomrule
+\end{tabular}}
+
+\newcommand{\tabmensais}{%
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+dia & A (k\$) & $\Delta_B$ & $\Delta_C$ & $\Delta_D$ & $I$ & partidas A & partidas D \\
+\midrule
+mês 01 & 1\,126,5 & 78,9 & 20,4 & 98,9 & -0,4 & 16,0 & 16,0 \\
+mês 02 & 1\,034,7 & 72,8 & 26,8 & 96,3 & -3,3 & 9,0 & 1,0 \\
+mês 03 & 1\,226,5 & 72,4 & 33,7 & 107,9 & 1,7 & 16,0 & 13,0 \\
+mês 04 & 1\,205,2 & 8,3 & 3,6 & 10,1 & -1,9 & 0,0 & 0,0 \\
+mês 05 & 1\,570,3 & 70,1 & 13,4 & 86,3 & 2,9 & 12,0 & 15,0 \\
+mês 06 & 1\,967,7 & 46,1 & 8,4 & 49,2 & -5,4 & 15,0 & 4,0 \\
+mês 07 & 2\,756,6 & 70,5 & 16,9 & 84,0 & -3,5 & 31,0 & 15,0 \\
+mês 08 & 2\,604,8 & 50,0 & 20,5 & 57,1 & -13,5 & 18,0 & 2,0 \\
+mês 09 & 2\,223,2 & 33,4 & 15,1 & 41,9 & -6,6 & 13,0 & 2,0 \\
+mês 10 & 1\,488,0 & 67,6 & 21,7 & 91,1 & 1,9 & 13,0 & 12,0 \\
+mês 11 & 1\,243,3 & 80,8 & 21,4 & 101,6 & -0,6 & 16,0 & 11,0 \\
+mês 12 & 1\,338,7 & 66,2 & 27,0 & 89,6 & -3,6 & 16,0 & 2,0 \\
+média & 1\,648,8 & 59,8 & 19,1 & 76,2 & -2,7 & 14,6 & 7,8 \\
+\bottomrule
+\end{tabular}}
+
+\newcommand{\tabcondicoes}{%
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+dia & part. A & part. A herd. & part. D & part. D herd. & $I$ & $I$ herd. \\
+\midrule
+primavera (vento alto) & 7,0 & 21,0 & 4,0 & 7,0 & 0,6 & -5,0 \\
+pico de verão & 26,0 & 41,0 & 14,0 & 19,0 & -1,5 & -9,7 \\
+rampa solar & 21,0 & 25,0 & 7,0 & 11,0 & -4,8 & -10,6 \\
+mediano & 15,0 & 17,0 & 16,0 & 7,0 & 0,6 & -0,6 \\
+média & 17,2 & 26,0 & 10,2 & 11,0 & -1,3 & -6,5 \\
+\bottomrule
+\end{tabular}}
+
+\newcommand{\tabbaseline}{%
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+dia & $\Delta_C$ plano & $\Delta_C$ nativo & $\Delta_D$ plano & $\Delta_D$ nativo & $I$ plano & $I$ nativo \\
+\midrule
+primavera (vento alto) & 24,5 & 11,3 & 98,5 & 85,3 & 0,6 & -0,1 \\
+pico de verão & 20,3 & 18,6 & 90,9 & 89,2 & -1,5 & -2,1 \\
+rampa solar & 26,4 & 23,9 & 108,3 & 105,8 & -4,8 & -7,7 \\
+mediano & 25,9 & 9,7 & 100,6 & 84,4 & 0,6 & 0,1 \\
+média & 24,3 & 15,9 & 99,6 & 91,2 & -1,3 & -2,4 \\
+\bottomrule
+\end{tabular}}
+
+\newcommand{\tabmigracao}{%
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+dia & $\Delta_C$ base & $I$ base & $\Delta_C$ $\times$0,5 & $I$ $\times$0,5 & $\Delta_C$ $\times$2 & $I$ $\times$2 \\
+\midrule
+primavera (vento alto) & 24,5 & 0,6 & 30,3 & 0,6 & 20,7 & 1,4 \\
+pico de verão & 20,3 & -1,5 & 23,9 & -1,7 & 14,1 & -2,2 \\
+rampa solar & 26,4 & -4,8 & 31,2 & -3,4 & 21,5 & -4,5 \\
+mediano & 25,9 & 0,6 & 27,2 & 0,8 & 24,5 & 0,6 \\
+média & 24,3 & -1,3 & 28,1 & -0,9 & 20,2 & -1,2 \\
+\bottomrule
+\end{tabular}}
+
+\newcommand{\tabsoc}{%
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+dia & $\Delta_B$ livre & $\Delta_B$ 50\% & $\Delta_D$ livre & $\Delta_D$ 50\% & $I$ livre & $I$ 50\% \\
+\midrule
+primavera (vento alto) & 73,4 & 58,6 & 98,5 & 82,4 & 0,6 & -0,7 \\
+pico de verão & 72,1 & 65,7 & 90,9 & 84,4 & -1,5 & -1,6 \\
+rampa solar & 86,7 & 75,4 & 108,3 & 97,2 & -4,8 & -4,6 \\
+mediano & 74,1 & 72,4 & 100,6 & 98,4 & 0,6 & 0,1 \\
+média & 76,6 & 68,0 & 99,6 & 90,6 & -1,3 & -1,7 \\
+\bottomrule
+\end{tabular}}
+
+\newcommand{\tableituras}{%
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+dia & $\Delta_B$ emerg. & $I$ emerg. & $\Delta_B$ explíc. & $I$ explíc. & $\Delta_B$ dedic. & $I$ dedic. \\
+\midrule
+primavera (vento alto) & 73,4 & 0,6 & 48,5 & 1,7 & 34,0 & 3,2 \\
+pico de verão & 72,1 & -1,5 & 33,0 & -2,1 & 31,5 & -2,2 \\
+rampa solar & 86,7 & -4,8 & 53,9 & -2,1 & 53,2 & -1,8 \\
+mediano & 74,1 & 0,6 & 41,8 & 7,2 & 41,2 & 6,8 \\
+média & 76,6 & -1,3 & 44,3 & 1,2 & 40,0 & 1,5 \\
+\bottomrule
+\end{tabular}}
+
+\newcommand{\tableiturasbig}{%
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+dia & $\Delta_B$ emerg. & $I$ emerg. & $\Delta_B$ explíc. & $I$ explíc. & $\Delta_B$ dedic. & $I$ dedic. \\
+\midrule
+primavera (vento alto) & 138,4 & 0,1 & 93,4 & -1,9 & 68,8 & -0,6 \\
+pico de verão & 121,2 & -16,5 & 59,2 & -3,6 & 54,9 & -4,1 \\
+rampa solar & 165,0 & -10,7 & 97,9 & -6,8 & 96,7 & -6,6 \\
+mediano & 141,5 & 0,2 & 88,7 & -1,9 & 85,9 & -0,8 \\
+média & 141,5 & -6,7 & 84,8 & -3,6 & 76,5 & -3,0 \\
+\bottomrule
+\end{tabular}}

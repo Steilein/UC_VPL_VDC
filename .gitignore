@@ -40,16 +40,12 @@ Thumbs.db
 results_pre_siteramp/
 
 # Builds intermediarios do LaTeX (o PDF final de cada documento fica)
-docs/relatorio/rel*.pdf
+docs/relatorio/rel[0-9]*.pdf
+docs/relatorio/relatorio.pdf
 docs/relatorio/build*.txt
 paper/build*.txt
 paper/main_v2.pdf
 paper/main_rev.pdf
-
-# Relatorio interno em portugues: documento de trabalho com perguntas dirigidas
-# ao orientador e descricao detalhada de tese ainda nao publicada. Para publica-lo,
-# remova esta linha.
-docs/relatorio/
 
 # Logs de execucao do solver (ruidosos, regeneraveis). O benchmark de solver fica.
 results/*log*.txt

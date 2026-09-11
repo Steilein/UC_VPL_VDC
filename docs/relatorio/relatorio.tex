@@ -1,0 +1,856 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage{lmodern}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{caption}
+\usepackage[colorlinks=false,hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+
+\graphicspath{{../../figures/}}
+\captionsetup{font=small,labelfont=bf}
+\setlist{itemsep=2pt,topsep=3pt}
+
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small UC day-ahead com VPL e VDC}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\input{tabelas}
+\input{numeros}
+
+\title{\vspace{-1.5cm}\Large\textbf{Co-otimização de Virtual Power Lines e Virtual Data Centers\\
+no Unit Commitment day-ahead de sistemas termoelétricos\\com alta penetração renovável}\\[10pt]
+\large\normalfont Levando a Virtual Power Line da tese do Flávio para a operação day-ahead\\[3pt]
+\small\itshape Co-Optimizing Virtual Power Lines and Virtual Data Centers in Day-Ahead Unit Commitment\\for Thermal-Dominated Systems with High Renewable Penetration}
+\author{Guilherme Steilein \\ \small Doutorado --- PPGEE-UFPR}
+\date{\small 11 de setembro de 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\section*{Resumo}
+
+A Virtual Power Line dimensionada no planejamento da tese do Flávio foi
+levada para a operação, hora a hora, num Unit Commitment day-ahead com rede. No mesmo corredor
+inseri um segundo recurso de flexibilidade que não existe na tese: data centers com carga adiável. O
+objetivo é determinar se os dois recursos se somam ou se anulam parcialmente. Foram \numncen{} cenários
+resolvidos com Gurobi. \textbf{O resultado é que eles competem}: juntos economizam de 1 a 11\,\% menos que a soma dos
+benefícios isolados, embora façam coisas operacionalmente bem diferentes --- a bateria ataca o
+curtailment, o data center ataca a ciclagem térmica.
+
+% =====================================================================
+\section{Motivação}
+
+\subsection{A tese do Flávio}
+
+A tese do Flávio trata de planejamento de expansão de geração e transmissão, de forma robusta e dinâmica,
+e introduz o conceito central para este trabalho: a \textbf{linha de transmissão
+virtual inter-área}. Em vez de reforçar fisicamente um tronco congestionado, coloca-se um par de baterias,
+uma em cada terminal do corredor, e opera-se esse par de modo que ele emule capacidade de transferência
+adicional. A bateria de montante absorve a energia que não conseguiu passar; a de jusante entrega essa
+energia do outro lado quando é preciso. Do ponto de vista do sistema, o efeito é parecido com o de ter
+mais corredor, só que instalável em meses em vez de quase uma década.
+
+Quatro elementos da tese são reaproveitados aqui praticamente sem alteração:
+
+\begin{itemize}
+\item \textbf{O sistema teste estressado}: o RTS-GMLC com a carga da Área 2 aumentada em 40\,\% e uma
+quantidade equivalente de geração renovável colocada na Área 3, nos nós candidatos que a tese identificou.
+É essa modificação que transforma o tronco 318--223 no gargalo do sistema.
+\item \textbf{O dimensionamento}: o modelo de planejamento da tese seleciona 650\,MW / 3\,800\,MWh para a
+linha virtual. Uso esse valor como limite superior da minha varredura de tamanho.
+\item \textbf{A regra de chaveamento}: a tese define o estado de cada bateria terminal em função do
+sentido do fluxo no corredor e do estágio de uso da rede (alto ou baixo, pelos percentis da demanda
+líquida). Implementei essa regra como variante e comparo com a operação livre.
+\item \textbf{As métricas de rampa}: FRUS e FRDS, a sobra de rampa para cima e para baixo das unidades
+ligadas, que a tese usa para argumentar sobre flexibilidade. Reporto as duas.
+\end{itemize}
+
+\subsection{Onde este trabalho se encaixa}
+
+A tese do Flávio para no planejamento. Ela mostra que alocar armazenamento como linha virtual inter-área
+adia o reforço do tronco por vários anos, e faz isso com uma camada de Unit Commitment acoplada de forma
+fraca, só para verificar as rampas. A própria conclusão dele aponta que o passo seguinte é levar o
+conceito para uma ferramenta de decisão operacional, onde o operador decide hora a hora.
+
+\textbf{É exatamente esse o meu ponto de partida}: transformar a linha virtual de um ativo de planejamento
+em um recurso de operação, dentro de um UC day-ahead completo, com rede, partidas, tempos mínimos e
+rampas. Aí a pergunta deixa de ser ``quanto de bateria instalar'' e passa a ser ``o que essa bateria faz
+em cada hora do dia, e quanto isso vale''.
+
+\subsection{Contribuição deste trabalho}
+
+No horizonte operacional, cabe identificar que outros agentes disputam a capacidade do mesmo corredor.
+Daí a segunda peça, ausente na tese: os \textbf{data centers}. São hoje uma das cargas de maior
+crescimento, e parte do que processam não tem restrição de horário nem de local --- treinamento de
+modelos, análises em lote, backups. Essa parcela pode ser adiada algumas horas ou executada em outro
+site.
+
+Chamo esse conjunto de \textbf{VDC (Virtual Data Center)}. A analogia é direta: os dois recursos
+aliviam o mesmo gargalo por caminhos opostos:
+
+\begin{itemize}
+\item a \textbf{VPL} move \emph{energia no tempo}, dentro do corredor: é uma solução pelo lado da oferta;
+\item o \textbf{VDC} move \emph{carga no espaço e no tempo}: é uma solução pelo lado da demanda.
+\end{itemize}
+
+\textbf{A questão central:} usados em conjunto, esses recursos entregam mais ou menos que a soma dos
+benefícios isolados? Não há na literatura consultada nenhum trabalho que os co-otimize no mesmo modelo. A métrica é direta:
+
+\begin{equation}
+I \;=\; \Delta_D - (\Delta_B + \Delta_C),
+\qquad \Delta_X = \text{Custo}(A) - \text{Custo}(X),
+\label{eq:I}
+\end{equation}
+
+onde A é o caso sem nada, B só com a VPL, C só com o VDC e D com os dois. Se $I>0$ eles se reforçam;
+se $I<0$ um reduz o valor marginal do outro.
+
+% =====================================================================
+\section{Modelo e implementação}
+
+\subsection{Ferramentas}
+
+Não escrevi o Unit Commitment do zero. A base é o \textbf{PyPSA 1.3}, que monta a rede e gera
+automaticamente as restrições clássicas do UC: balanço nodal, fluxo de potência linear, lógica de partida
+e parada, tempos mínimos ligado e desligado, rampas e balanço de armazenamento. Por baixo dele está o
+\textbf{linopy 0.9}, que constrói o problema algebricamente e conversa com o solver. A vantagem é que a
+formulação padrão vem testada e auditável por terceiros; o que escrevi de fato são as duas camadas de
+flexibilidade e três blocos de restrições adicionais.
+
+\begin{table}[htbp]
+\centering\small
+\caption{O que cada peça faz.}
+\begin{tabular}{@{}llp{8.4cm}@{}}
+\toprule
+Ferramenta & Versão & Papel \\
+\midrule
+PyPSA & 1.3.0 & rede, formulação do UC, fluxo DC, armazenamento, exportação NetCDF \\
+linopy & 0.9.1 & montagem algébrica do MILP e interface com o solver \\
+Gurobi & 13.0.3 & solver MILP da grade final (licença acadêmica da UFPR) \\
+HiGHS & 1.15.1 & solver aberto, usado no desenvolvimento e na depuração \\
+pandas / xarray & 3.0 / 2026.7 & manipulação de séries e de resultados \\
+numpy / scipy & 2.5 / 1.18 & cálculo numérico e a DFT da seleção de dias \\
+matplotlib & 3.11 & figuras \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Sobre o solver: a grade toda roda com \textbf{Gurobi 13.0.3 na licença acadêmica da UFPR}, ativada nesta
+máquina em setembro. Não é detalhe menor. Como mostro na seção~\ref{sec:gap}, a interação que quero medir
+é da mesma ordem de grandeza da tolerância que normalmente se aceita num MILP, e só foi possível resolver
+a grade inteira a 0{,}05\,\% de gap por causa do Gurobi. Com o HiGHS, que é aberto e foi o que usei para
+desenvolver, o mesmo conjunto levaria muito mais tempo e boa parte dos casos pararia num gap dez vezes
+maior.
+
+O código próprio tem cerca de \textbf{3\,700 linhas} em dez módulos, mais os testes, e tudo é encadeado
+por um \texttt{Makefile}: uma linha de comando refaz desde a validação da rede até as figuras.
+
+\subsection{Dados}
+
+Nada foi inventado. São duas fontes, ambas clonadas de repositórios públicos:
+
+\begin{itemize}
+\item \textbf{RTS-GMLC}, do NREL e do consórcio GridMod (commit \texttt{3ece0d3}, de outubro de 2025).
+Dele vêm a topologia (73 barras, 120 ramos), o parque gerador com curva de heat-rate por segmentos,
+custos de partida, tempos mínimos e rampas de cada unidade, e as séries horárias de 2020 para carga,
+eólica, solar fotovoltaica, solar de telhado e CSP. Uso sempre a versão \emph{day-ahead} das séries, que é
+a que o operador teria em mãos na véspera.
+\item \textbf{Phd\_Files}, o repositório do Flávio (commit \texttt{d1d593e}, de maio de 2024). Dele vêm os
+nós candidatos de geração, que definem onde entra o acréscimo renovável da Área 3, além das planilhas de
+custo que usei para conferência.
+\end{itemize}
+
+O que \emph{não} vem de dado público é o conjunto de data centers: tamanho, PUE e tarefas são premissas
+minhas, geradas com semente fixa. Isso está declarado como limitação.
+
+Alguns pontos da conversão do RTS-GMLC para o PyPSA que deram trabalho e vale registrar: os ramos vêm em
+p.u. na base de 100\,MVA e precisam virar ohms; os ramos com relação de transformação viram
+transformadores, não linhas, e isso muda o fluxo; a curva de heat-rate por segmentos é linearizada num
+ponto de 80\,\% da potência nominal; o elo de corrente contínua vira um \emph{link}, enquanto as linhas CA
+nunca podem virar \emph{link}, sob pena de perder a física do congestionamento. Validei tudo isso
+comparando o fluxo do UC com um fluxo de potência linear estático: o erro de balanço nodal ficou na casa
+de $10^{-12}$\,MW.
+
+\subsection{Formulação}
+
+O problema é um MILP. A função objetivo minimiza, ao longo das 24 horas, quatro parcelas:
+
+\begin{equation}
+\sum_{t}\Big[\underbrace{\sum_{g}\big(C^{\mathrm{E}}_g p_{g,t} + C^{\mathrm{SU}}_g v_{g,t}\big)}_{\text{combustível e partida}}
++ \underbrace{C^{\mathrm{curt}}\!\sum_{i}(\bar r_{i,t}-r_{i,t})}_{\text{curtailment}}
++ \underbrace{\sum_{b} C^{\mathrm{deg}}_b p^{\mathrm{dis}}_{b,t}}_{\text{degradação}}
++ \underbrace{\sum_{j,d} c_{j,d}\,\mathrm{PUE}_d\,x_{j,d,t}}_{\text{migração de carga}}\Big]
+\end{equation}
+
+As binárias são o estado, a partida e a parada de cada térmica ($u_{g,t}$, $v_{g,t}$, $w_{g,t}$):
+\textbf{5\,256 binárias} por dia, o que faz deste um MILP de porte respeitável para 24 horas. As
+contínuas são a geração, o fluxo em cada ramo, a carga e descarga das baterias e a potência de TI de cada
+tarefa em cada site. No total, 14\,040 variáveis e 45\,910 restrições.
+
+O PyPSA gera sozinho a lógica $u_{g,t}-u_{g,t-1}=v_{g,t}-w_{g,t}$, os tempos mínimos ligado e desligado,
+os limites de potência, as rampas, o fluxo linear
+$f_{\ell,t}=(\theta_{n_1}-\theta_{n_2})/x_\ell$ com $|f_{\ell,t}|\le F_\ell$, e o balanço em cada barra.
+
+Escrevi à mão três blocos:
+
+\begin{enumerate}
+\item \textbf{Reserva girante}: a folga das unidades ligadas tem que cobrir 3\,\% da carga mais 5\,\% da
+renovável disponível,
+$\sum_g (u_{g,t}\overline{P}_g - p_{g,t}) \ge 0{,}03\,L_t + 0{,}05\sum_i \bar r_{i,t}$.
+\item \textbf{Capacidade de cada data center}: a soma das tarefas rodando num site não pode passar da
+capacidade flexível dele, $\sum_j \mathrm{PUE}_d\,x_{j,d,t} \le f_d C_d$.
+\item \textbf{Rampa agregada de cada data center}: a carga de TI de um site não pode variar mais que
+$\Delta_d$ de uma hora para a outra, $\left|\sum_j x_{j,d,t} - \sum_j x_{j,d,t-1}\right| \le \Delta_d$,
+com $\Delta_d = 0{,}5\,f_d C_d/\mathrm{PUE}_d$. Esta é a restrição que estava declarada no artigo mas
+aplicada por par tarefa--site na primeira versão do código; corrigi-la derrubou o valor do data center
+de 26{,}4 para 24{,}3\,k\$/dia.
+\item \textbf{A regra de chaveamento da tese}, em duas variantes: uma binária de sentido de fluxo no
+corredor, com big-$M$, e outra que fixa o modo de cada bateria conforme o estágio de uso da rede. Na
+variante \emph{explícita} as horas intermediárias ficam livres para arbitrar, o que corresponde ao
+\emph{revenue stacking} da versão inter-área do capítulo 5 da tese. Na variante \emph{dedicada} a regra
+vale nas 24 horas, que é a leitura estrita da seção 4.2.3. A comparação entre as duas está na
+seção~\ref{sec:leituras}.
+\end{enumerate}
+
+Além dessas, o \emph{Link} do PyPSA traz uma rampa própria, que aplica o mesmo $\Delta_d$ a cada par
+tarefa--site individualmente. Ela não é redundante em relação à rampa agregada: medindo as 160
+soluções com VDC, fica ativa em todas elas e em 8{,}7\,\% dos pares (par tarefa--site, hora), um terço
+deles fora da borda da janela. O efeito prático é que uma tarefa entra a meia potência na primeira
+hora da sua janela. Por isso ela passou a constar da formulação do artigo como equação própria, e
+não como detalhe de implementação.
+
+A VPL em si são dois \emph{storage units} com estado de carga cíclico e eficiência $\sqrt{0{,}85}$ em cada
+sentido, o que dá os 85\,\% de ida e volta da tese. Na formulação que uso como padrão \emph{não existe
+nenhuma restrição ligando uma bateria à outra}: o comportamento de linha virtual emerge da posição delas e
+dos preços. Volto a isso na seção~\ref{sec:decomp}, porque é um resultado por si só.
+
+\textbf{Preços nodais.} Depois de resolver o MILP, fixo todas as binárias na solução e resolvo o problema
+de novo como um LP. Os multiplicadores desse LP são os preços nodais. É o procedimento padrão de formação
+de preço em mercado day-ahead: o preço sai com o \emph{commitment} já decidido.
+
+\subsection{Modelo dos data centers}
+
+A literatura de UC representa flexibilidade de data center como uma fração agregada da energia diária.
+Aqui a modelagem é \textbf{por tarefa}, o que permite representar prazo e nível de serviço de forma
+explícita. São 18 tarefas por dia: em cada site, duas do tipo \emph{batch} (janela de 8 a
+12 horas, só rodam no site nativo, dão flexibilidade no tempo) e quatro \emph{migráveis} (janela de 2 a
+4 horas, rodam em qualquer site, dão flexibilidade no espaço). Cada tarefa tem sua energia, sua janela e
+um custo de migração assimétrico de 5 a 20\,\$/MWh.
+
+A implementação em PyPSA usa componentes nativos: cada tarefa é uma barra virtual, alimentada por um
+\emph{link} de cada site elegível (eficiência $1/\mathrm{PUE}$, janela como disponibilidade, custo de
+migração como custo marginal) e terminada por um \emph{store} cuja energia mínima salta para $E_j$ na
+hora do prazo. O prazo passa a ser restrição dura sem nenhuma variável adicional. A única restrição
+escrita manualmente é a capacidade por site.
+
+No total, \numvdcit{}\,MWh de TI por dia são adiáveis nos três sites.
+
+
+% =====================================================================
+\section{Casos e cenários}
+
+\subsection{Sistema teste}
+
+RTS-GMLC, 73 barras, três áreas, 158 unidades, com a configuração estressada da tese. O corredor de
+interesse é o tronco \textbf{318--223} (Área 3 para Área 2, 500\,MW). A penetração renovável é escalada
+por um fator anual único, para 30, 50 ou 70\,\% da carga do ano.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.6\linewidth]{fig1_map.pdf}
+\caption{O sistema com o corredor em destaque, os dois terminais da VPL (triângulos) e os três data
+centers (quadrados), um por área.}
+\end{figure}
+
+\subsection{Os quatro casos de estudo}
+
+\begin{itemize}
+\item \textbf{A} --- base, sem nenhum recurso flexível;
+\item \textbf{B} --- A mais a VPL (200\,MW / 4\,h por terminal, 85\,\% de eficiência ida-e-volta, como na
+tese);
+\item \textbf{C} --- A mais o VDC (três sites de 200\,MW, PUE 1{,}30, metade da capacidade flexível);
+\item \textbf{D} --- A com os dois.
+\end{itemize}
+
+\textbf{Equalização de energia entre os casos.} Nos casos A e B os data centers permanecem no sistema,
+como carga inflexível, consumindo exatamente a mesma energia diária que consomem em C e D. Sem essa
+equalização, a comparação mediria o valor de \emph{retirar carga} do sistema em vez do valor da
+\emph{flexibilidade} dela. O efeito sobre o resultado é da ordem de 40\,\% do valor atribuído ao data
+center.
+
+\subsection{Grade de cenários}
+
+Foram \numncen{} resoluções, todas com Gurobi a 0{,}05\,\% de gap (mediana de \numtmed{}\,s por caso):
+
+\begin{itemize}
+\item quatro dias representativos $\times$ quatro casos $\times$ doze variações;
+\item uma varredura cruzada de tamanho da VPL contra fração flexível do data center;
+\item cada bateria terminal rodando sozinha, para separar o que é ``par'' do que é ``bateria'';
+\item doze dias mensais, um por mês, para ver se os resultados valem fora dos dias extremos;
+\item o dia anterior resolvido, para herdar as condições iniciais das térmicas;
+\item um baseline alternativo para os data centers inflexíveis.
+\end{itemize}
+
+Os quatro dias vieram de uma seleção automática sobre a série anual, usando a mesma caracterização de
+rampa da demanda líquida que a tese usa: o dia de maior excedente eólico (12/03), o pico anual de carga
+(26/08), a maior rampa de três horas (14/01) e um dia útil de energia mediana (16/03).
+
+% =====================================================================
+\section{Resultados}
+
+\subsection{Valor de cada recurso}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Custo operacional (k\$/dia) e benefícios, com 50\,\% de renovável. $\Delta$ é a economia em
+relação ao caso A; $I$ é a interação da equação~\eqref{eq:I}.}
+\tabcustodia
+\end{table}
+
+Na média dos quatro dias, a VPL sozinha economiza \numparpar{}\,k\$/dia (\numredB{}\,\% do custo), o
+data center flexível sozinho \numdCplano{}\,k\$ (\numredC{}\,\%) e os dois juntos \numredD{}\,\%. A
+interação média é \numIbase{}\,k\$/dia, ligeiramente negativa. A interação varia de sinal entre os dias, o que indica desde já a necessidade de tratamento numérico
+cuidadoso.
+
+\subsection{Serviços operacionais distintos}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Métricas operacionais, médias dos quatro dias.}
+\taboperacional
+\end{table}
+
+Os dois recursos não são intercambiáveis do ponto de vista operacional:
+
+\begin{itemize}
+\item \textbf{A VPL ataca o curtailment}: derruba de \numcurtA{}\,\% para \numcurtB{}\,\%. Nas partidas ela
+mexe pouco.
+\item \textbf{O VDC ataca a ciclagem}: as partidas caem de \numpartA{} para \numpartC{} por dia, e as horas
+em mínimo técnico também. No curtailment ele quase não mexe.
+\item Juntos chegam a \numpartD{} partidas e ao menor curtailment.
+\item As \emph{horas congestionadas aumentam} com qualquer um dos recursos, de 9{,}5 para 10{,}8--12{,}8.
+O comportamento é esperado: os recursos passam a usar o corredor em mais horas para mover energia ou
+carga através dele. O corredor fica mais utilizado, não menos.
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.88\linewidth]{fig2_dispatch.pdf}
+\caption{Despacho por combustível nos casos A e D, no dia de vento alto. O curtailment é a área
+hachurada; no caso D ela diminui e o perfil térmico fica mais suave.}
+\end{figure}
+
+\subsection{Operação hora a hora}
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}{0.48\linewidth}\centering
+\includegraphics[width=\linewidth]{fig3_corridor_vpl.pdf}
+\end{minipage}\hfill
+\begin{minipage}{0.48\linewidth}\centering
+\includegraphics[width=\linewidth]{fig4_vdc_heatmap.pdf}
+\end{minipage}
+\caption{À esquerda, o fluxo no corredor e o estado de carga das duas baterias, na variante com a regra de
+chaveamento da tese, que deixa visíveis os estágios de alto e baixo uso. À direita, a carga dos data
+centers por site e hora, nos casos C e D.}
+\end{figure}
+
+A bateria de montante carrega de madrugada e de novo entre 12\,h e 16\,h, enquanto o corredor está
+saturado e há vento sendo cortado na Área 3. A de jusante carrega pelo corredor no vale do meio-dia e
+descarrega no pico da noite, entre 18\,h e 20\,h, quando o fluxo cai de 500 para cerca de 270\,MW. É o
+comportamento descrito na tese, e ele aparece mesmo sem impor a regra: na operação livre o otimizador
+converge para o mesmo padrão.
+
+Do lado dos data centers, a carga adiável se concentra entre 6\,h e 17\,h e o pico da noite fica quase
+vazio nos três sites.
+
+\textbf{Por que eles competem, se fazem coisas diferentes?} Porque precisam do mesmo insumo escasso, que
+é a \emph{folga do corredor nas horas em que ele não está saturado}. A bateria de jusante só pode ser
+carregada com energia que atravessa o corredor. A tarefa migrada para a Área 3 só tem valor porque consome
+ali a energia que seria cortada. Quando um dos dois ocupa essa folga, sobra menos para o outro. Nos dados
+isso aparece com clareza: no caso D a capacidade virtual da VPL e o deslocamento temporal do data center
+ficam ambos menores do que nos casos isolados.
+
+Um resultado contrário à hipótese inicial: o \emph{spread} de preço entre as pontas do corredor
+\textbf{não colapsa}. Ele permanece em 21--23\,\$/MWh nas horas saturadas nos quatro casos, apenas se
+desloca de hora. A competição, portanto, é por capacidade física do corredor, e não pela eliminação de um
+sinal de preço.
+
+\subsection{Interação por nível de penetração}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Valor marginal e interação por nível de penetração, médias dos quatro dias (k\$/dia). A coluna
+``ruído'' é a soma dos gaps absolutos dos quatro casos, o limite abaixo do qual $I$ não se distingue da
+tolerância do solver.}
+\tabpenetracao
+\end{table}
+
+\begin{itemize}
+\item A interação é negativa nos três níveis.
+\item \textbf{A competição é mais forte a 30\,\%}: o corredor satura em poucas horas, quatro em média, e
+os dois recursos disputam a mesma janela curta. O benefício conjunto fica 11{,}1\,\% abaixo da soma.
+\item A 50 e 70\,\% o corredor satura em 9 a 11 horas, há mais espaço para atuarem em horas diferentes, e
+a interação encolhe, sem mudar de sinal.
+\item A hipótese inicial era a oposta: com muita renovável, a bateria ficaria limitada por energia e o
+data center por prazo, tornando-os complementares. \textbf{Os dados não sustentam essa hipótese.}
+\end{itemize}
+
+Olhando as 48 combinações de dia e variação da grade principal, $I$ é negativo em 32 e supera duas vezes
+o ruído do gap em 17 delas, sendo 15 de competição e 2 de complementaridade.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.72\linewidth]{fig7_complementarity.pdf}
+\caption{Interação por dia e penetração. Barra negativa indica competição entre os recursos.}
+\end{figure}
+
+\subsection{Sensibilidades}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Efeito de cada variação sobre os benefícios e sobre a interação (k\$/dia, médias dos quatro
+dias). Onde aparece ``---'', o eixo não se aplica àquele caso.}
+\tabsensibilidades
+\end{table}
+
+\begin{itemize}
+\item \textbf{Tamanho da VPL}: o valor cresce, mas com retorno marginal decrescente --- 38, 32 e 18\,k\$
+por cada 100\,MW adicionais, ao passar de 100 para 200, 400 e 650\,MW. Portanto \textbf{os 650\,MW selecionados pelo
+planejamento da tese ainda agregam valor na operação}, a cerca de metade da taxa marginal inicial. É um
+ponto de consistência direta entre os dois trabalhos.
+\item \textbf{Fração flexível do data center}: com 0{,}2 ele quase não vale nada, porque paga custo de
+migração para deslocar pouca energia; com 0{,}8 vale 37\,k\$.
+\item \textbf{Largura da janela}: dobrar a janela das tarefas \emph{batch} leva o valor de 24 para 33\,k\$.
+O prazo é restrição de primeira ordem, tanto quanto a quantidade de carga flexível.
+\item \textbf{A regra de chaveamento da tese}: na variante explícita custa 2{,}1\,\% do custo
+operacional, ou seja, abre mão de 32 dos 77\,k\$ de benefício da VPL, porque proíbe a bateria de arbitrar
+contra o sentido do fluxo nas horas estagiadas. Na variante dedicada, que fecha também as horas
+intermediárias, a perda sobe para 37 dos 77\,k\$. A seção~\ref{sec:leituras} detalha.
+\item \textbf{Reserva provida pelos recursos flexíveis}: efeito quase nulo, entre 0{,}01 e 0{,}2\,\%. A
+reserva raramente é restritiva depois que o data center já achatou a demanda líquida.
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{fig9_sizing.pdf}
+\caption{Custo, curtailment e partidas em função do tamanho da VPL, da fração flexível e da largura da
+janela. As linhas pontilhadas são os casos aos quais o eixo não se aplica.}
+\end{figure}
+
+\subsection{Superfície de interação: tamanho da VPL $\times$ flexibilidade}
+
+Como a competição depende de quanto cada recurso consegue absorver da oportunidade do corredor, cruzei os
+dois eixos de dimensionamento.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Interação $I$ (k\$/dia) em função do tamanho da VPL e da fração flexível, médias dos quatro dias.
+O ruído do gap é de cerca de 2{,}5\,k\$ em todas as células.}
+\tabsuperficie
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{fig8_cross_vpl_fd.pdf}
+\caption{Superfície de interação, por dia e na média. Vermelho é competição.}
+\end{figure}
+
+\begin{itemize}
+\item Com VPL de 100 a 200\,MW a interação média fica \emph{dentro do ruído} em qualquer fração flexível.
+Ou seja, nesse porte, dá para tratar os dois recursos como aditivos.
+\item \textbf{Com 400\,MW ela fica claramente negativa}: $-3{,}1$, $-6{,}7$ e $-7{,}2$\,k\$/dia, o que
+equivale a 19 a 28\,\% do próprio benefício do data center. Com os 650\,MW da tese chega a
+$-16{,}3$\,k\$/dia.
+\item Complementaridade significativa aparece numa célula só, e num dia só: VPL de 100\,MW com metade da carga
+flexível, no dia mediano, com $+7{,}0$\,k\$ (2,4 vezes o ruído). Faz sentido: a bateria é pequena demais
+para esgotar a oportunidade do corredor, e o data center preenche as horas que sobram.
+\end{itemize}
+
+\subsection{Contribuição do pareamento dos terminais}
+\label{sec:decomp}
+
+Esta verificação toca diretamente o conceito da tese. Na formulação adotada como padrão, as duas
+baterias não têm nenhuma restrição ligando uma à outra: o comportamento de linha virtual \emph{emerge} da
+localização e dos preços. Cabe então separar o que vem do pareamento e o que vem simplesmente de haver
+duas baterias bem posicionadas. Para isso, cada terminal foi resolvido isoladamente.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Decomposição do benefício da VPL (k\$/dia). ``Pareamento'' é o benefício do par menos a soma dos
+benefícios de cada bateria sozinha.}
+\tabdecomposicao
+\end{table}
+
+Cada bateria sozinha vale \numparup{} (montante) e \numpardn{}\,k\$ (jusante); o par vale
+\numparpar{}\,k\$. \textbf{O pareamento acrescenta só \numpareamentopct{}\,\%.} Ou seja, praticamente todo
+o benefício vem de ter armazenamento \emph{nos terminais do corredor certo}, coordenado ou não.
+
+O resultado não enfraquece a proposta da tese: reforça a sua componente de planejamento. O que a tese
+resolve é \emph{onde} alocar o armazenamento, e é essa decisão de localização que carrega quase todo o
+valor. O que estes números indicam é que, uma vez bem localizadas, as baterias entregam o benefício sem
+necessidade de coordenação explícita --- ao menos num modelo determinístico e sem contingências, que é o
+caso aqui.
+
+O mesmo vale para o outro resultado: a regra de chaveamento da tese \emph{custa} de 2 a 2{,}4\,\% do
+custo operacional em vez de agregar, conforme se liberem ou não as horas intermediárias. A leitura precisa de cautela. A regra é um protocolo simples, aplicável sem rodar um UC completo,
+e o que se mede aqui é o custo de oportunidade dela em ambiente idealizado. Num modelo com contingências,
+obrigações de transmissão ou incerteza, uma regra que garante o comportamento de linha virtual pode valer
+mais do que a arbitragem livre permitida ao otimizador.
+
+\subsection{A VPL na definição da tese}
+\label{sec:leituras}
+
+Vale separar a VPL enquanto ativo da VPL enquanto regra, porque a tese define pela regra. Na seção 4.2.3
+cada ESS opera permanentemente em estado de carga ou de descarga, e esse estado é determinado por dois
+indicadores: o estágio de demanda líquida e o sentido do fluxo no corredor. A Tabela 4.3 da tese fecha as
+quatro combinações. A seção 4.2.13 diz o mesmo de forma direta: ao contrário de um elemento físico de
+transmissão, governado pelas equações de fluxo, a VTL exige restrições lógicas que acoplem estado do
+armazenamento, sentido do fluxo e nível de utilização da rede. E na taxonomia de serviços do capítulo 4 o
+armazenamento alocado a uma VTL emula transferências \emph{exclusivamente}, sem prestar nenhum outro
+serviço; arbitragem é uma categoria separada, com regra própria. O empilhamento de receitas só aparece na
+versão inter-área do capítulo 5, e mesmo lá a função de transferência fica reservada a estágios
+específicos.
+
+Isso expõe uma folga na variante que eu vinha chamando de explícita: ela aplica a regra nos estágios
+extremos e libera as horas intermediárias para arbitragem, o que corresponde ao tratamento do capítulo 5 e
+não ao do capítulo 4. Implementei então uma terceira variante, \textbf{dedicada}, em que a regra vale em
+todas as horas e não sobra nenhuma hora livre.
+
+\begin{table}[htbp]
+\centering\small
+\caption{As três leituras da VPL: benefício e interação (k\$/dia, médias dos quatro dias).}
+\tableituras
+\end{table}
+
+O protocolo estrito custa caro: a VPL cai de \numdBemerg{} para \numdBdedic{}\,k\$/dia, ou seja,
+praticamente metade do benefício. Mas quase todo esse custo já aparece na variante explícita, que entrega
+\numdBexplic{}\,k\$. \textbf{Fechar as horas intermediárias custa só mais 4\,k\$}; o grosso da conta vem da
+própria regra de estágio. A capacidade virtual acompanha, caindo de 269 para 191 e depois 174\,MWh, e o
+\emph{throughput} de 1\,598 para 1\,360 e 1\,129\,MWh.
+
+No dia de vento alto, sob a regra estrita, \textbf{a bateria de montante fica parada as 24
+horas}. Todo o benefício do dia vem da bateria de jusante. Nos outros três dias ela opera de 5 a 12 horas,
+contra 11 a 18 na formulação livre.
+
+A razão é direta. No corredor estudado o fluxo nunca inverte: é sempre de montante para jusante, nas 96
+horas. Com o sentido fixo, a Tabela 4.3 deixa a bateria de montante com apenas duas opções, carregar nas
+horas de alto uso e descarregar nas de baixo uso. É o inverso do que a economia pede, porque o excedente
+renovável de montante ocorre ao meio-dia, que é justamente hora de baixa demanda líquida. No dia de vento
+alto, em que esse descasamento é mais forte, o otimizador simplesmente não opera essa bateria.
+
+Sobre a interação, a leitura precisa de cuidado. No porte base ela vai de \numIbase{} na formulação livre
+para \numIdedic{}\,k\$/dia na dedicada, trocando de sinal. \textbf{Mas as três ficam dentro do ruído do
+gap}, que é de 2,3 a 2,5\,k\$ nas três variantes. Ou seja, no porte base nenhuma das leituras produz
+interação mensurável, o que é consistente com o que já se sabia: o sinal de competição aparece com VPL
+grande ou com penetração baixa, não no ponto base.
+
+Por isso repeti a comparação a 400\,MW por terminal, que é onde a competição é mensurável na formulação
+livre. Esta é a verificação que de fato interessa, porque testa se a conclusão do trabalho depende de eu
+ter deixado as baterias livres.
+
+\begin{table}[htbp]
+\centering\small
+\caption{As três leituras com VPL de 400\,MW por terminal (k\$/dia, médias dos quatro dias).}
+\tableiturasbig
+\end{table}
+
+\textbf{A competição sobrevive ao protocolo da tese.} Com 400\,MW a interação é
+\numIbigemerg{}\,k\$/dia na formulação livre, \numIbigexplic{} na explícita e \numIbigdedic{} na
+dedicada. Nas duas variantes com regra ela é \textbf{negativa nos quatro dias}, contra dois dos quatro
+na formulação livre.
+O padrão é coerente com o mecanismo. Amarrar a bateria reduz o quanto ela captura da oportunidade do
+corredor, e por isso ela também disputa menos: o benefício cai de \numdBbigemerg{} para
+\numdBbigdedic{}\,k\$/dia e a competição cai junto, de \numIbigemerg{} para \numIbigdedic{}, deixando de
+superar duas vezes o ruído na média, embora o sinal fique mais consistente dia a dia. Em proporção ao
+benefício do data center, a competição vai de 28\,\% na formulação livre para 12\,\% na dedicada.
+\textbf{O sentido do resultado não depende de qual leitura se adote; a magnitude, sim.}
+
+
+Três observações sobre por que nada disso enfraquece a tese:
+
+\begin{enumerate}
+\item \textbf{O estágio da tese é anual, o meu é diário.} Lá a discretização da demanda líquida vem da
+curva de duração anual dentro de um modelo de planejamento. Aplicá-la hora a hora num único dia é um uso
+mais severo do que a regra foi desenhada para suportar.
+\item \textbf{A regra pressupõe fluxo que inverte.} A lógica da Tabela 4.3 só usa os dois terminais quando
+o sentido do fluxo muda ao longo do dia. Num corredor unidirecional saturado, o terminal de montante perde
+função sob a regra.
+\item \textbf{A métrica da tese é outra.} Lá a VTL é avaliada pelo investimento em linha que ela adia, não
+pelo custo operacional de um dia. Estes números não medem aquilo.
+\end{enumerate}
+
+O que levo daqui é que os três valores formam um intervalo, e não um veredito: a VPL vale
+\numdBdedic{}\,k\$/dia sob o protocolo estrito, \numdBexplic{} com as horas intermediárias liberadas e
+\numdBemerg{} se as baterias forem totalmente livres. O primeiro número é o que corresponde à definição da
+tese; o último é um limite superior do que armazenamento de corredor pode entregar.
+
+\subsection{Validade fora dos dias extremos}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Um dia útil de energia mediana por mês, configuração base (k\$/dia).}
+\tabmensais
+\end{table}
+
+Nos doze dias mensais o uso conjunto reduz o custo em \nummensalcusto{}\,\%, o curtailment em
+\nummensalcurt{}\,\% e as partidas em \nummensalsu{}\,\%, contra 
+umredD{}\,\%, 
+umredcurtD{}\,\% e 
+umredsuD{}\,\% nos quatro dias
+representativos. \textbf{A interação é negativa em \nummensalIneg{} dos 12 dias}, com média de
+$-2{,}7$\,k\$/dia. Os quatro dias escolhidos são, portanto, otimistas em magnitude, como esperado por serem dias extremos,
+mas o sinal da competição se mantém ao longo do ano.
+
+% =====================================================================
+\section{Verificações de robustez}
+
+Como a conclusão é contraintuitiva, seis hipóteses de modelagem que poderiam produzi-la artificialmente
+foram testadas isoladamente.
+
+\subsection{Precisão do solver}
+\label{sec:gap}
+
+Esta foi a questão que mais mudou a forma de rodar o trabalho, então vale detalhar.
+
+\textbf{O que é o \emph{gap}.} Num MILP o solver mantém duas referências: a melhor solução inteira já
+encontrada, que é um limite superior do custo, e o melhor limite inferior que a relaxação permite provar.
+A distância relativa entre as duas é o \emph{gap}. O solver para quando essa distância cai abaixo da
+tolerância pedida. Ou seja, com tolerância de 0{,}5\,\% eu não sei onde está o ótimo: sei apenas que o
+custo que reportei está em algum ponto até 0{,}5\,\% acima dele.
+
+\textbf{Por que isso é crítico aqui.} A interação da equação~\eqref{eq:I} pode ser reescrita como
+
+\begin{equation}
+I \;=\; \Delta_D - (\Delta_B + \Delta_C) \;=\; (B + C) - (A + D),
+\end{equation}
+
+isto é, uma combinação de quatro custos com sinais opostos. O erro de truncamento de cada um é sempre
+positivo (o custo reportado nunca é menor que o ótimo), mas como dois entram somando e dois subtraindo,
+\textbf{os erros não se cancelam: no pior caso eles se acumulam}.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Erro que a tolerância do solver admite, para um custo típico de 1{,}56\,M\$/dia por caso.}
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+Tolerância & Erro por caso & Erro possível em $I$ & Comparação \\
+\midrule
+0{,}5\,\% (usual) & até 7{,}8\,k\$ & $\pm$15{,}6\,k\$ & maior que qualquer interação medida \\
+0{,}05\,\% (adotada) & até 0{,}8\,k\$ & $\pm$1{,}6\,k\$ & menor que a maioria das interações \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+As interações que apareceram na grade vão de menos de 1 até 20\,k\$/dia. Com tolerância de 0{,}5\,\%, portanto,
+qualquer valor medido estaria dentro da margem de erro do próprio solver --- eu não teria como afirmar
+sequer o \emph{sinal} da interação.
+
+\textbf{Um exemplo concreto.} Resolvendo o caso D do dia de vento alto duas vezes, só mudando a
+tolerância:
+
+\begin{itemize}
+\item com alvo de 0{,}5\,\%, o Gurobi para em 7{,}3\,s e reporta 585\,526\,\$;
+\item com alvo de 0{,}05\,\%, para em 7{,}7\,s e reporta 583\,185\,\$.
+\end{itemize}
+
+São 2\,341\,\$ de diferença no mesmo caso, pela mesma máquina, só por causa da tolerância. A interação
+medida naquele dia é de 1\,216\,\$. \textbf{O erro de um único dos quatro casos seria o dobro do efeito
+que eu quero medir.}
+
+\textbf{E por que o Gurobi?} Aqui é preciso ser preciso: o gap é uma escolha de quem roda, não uma
+propriedade do solver. O HiGHS também aceita 0{,}05\,\%. A diferença está no custo computacional de
+chegar lá, porque o esforço para fechar os últimos décimos de percentual cresce de forma muito não
+linear: os primeiros pontos percentuais vêm de heurísticas rápidas, e o resto exige explorar a árvore de
+\emph{branch-and-bound}. Medi isso nos mesmos dois casos:
+
+\begin{table}[htbp]
+\centering\small
+\caption{Tempo para fechar cada tolerância, mesmo caso e mesma máquina (8 threads).}
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+Caso & Solver & alvo 0{,}5\,\% & alvo 0{,}05\,\% & fator \\
+\midrule
+A (base)  & HiGHS  & 9{,}1\,s  & 80{,}5\,s & 8{,}8$\times$ \\
+A (base)  & Gurobi & 5{,}4\,s  & 9{,}3\,s  & 1{,}7$\times$ \\
+D (ambos) & HiGHS  & 15{,}8\,s & 28{,}5\,s & 1{,}8$\times$ \\
+D (ambos) & Gurobi & 7{,}3\,s  & 7{,}7\,s  & 1{,}1$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Nesses dois casos o HiGHS até fecha o 0{,}05\,\%, mas leva de 2 a 9 vezes mais tempo, e chega a ser
+9 vezes mais lento que o Gurobi na mesma tolerância. O problema aparece na escala da grade: são
+\numncen{} cenários, e os casos difíceis (os de 70\,\% de renovável, em que o Gurobi já chega a bater o
+limite de 30 minutos) simplesmente não fechariam. Como referência, na grade antiga que rodei inteira em
+HiGHS com tolerância de 0{,}5\,\%, 13 dos 116 casos pararam \emph{no teto} da tolerância sem provar
+otimalidade --- ou seja, já estavam no limite do que aquele solver entregava.
+
+\textbf{Resumo.} Com o HiGHS a 0{,}5\,\% o sinal de $I$ era inconclusivo em \emph{todas} as 48
+combinações, e chegou a inverter entre as duas tolerâncias em cinco delas. A licença acadêmica da UFPR
+foi o que tornou viável rodar a grade inteira a 0{,}05\,\% em algumas horas. A lição que levo daqui é
+metodológica: estudos que medem ``sinergia'' entre tecnologias como diferença de objetivos de MILP
+precisam reportar o gap, senão podem estar medindo tolerância de solver. Passei a reportar o ruído ao
+lado de cada interação.
+
+\subsection{Condições iniciais das térmicas}
+
+O RTS-GMLC não traz histórico de operação, então é preciso decidir quais unidades começam o dia ligadas.
+Como partidas são métrica central, a hipótese foi testada: o dia anterior a cada dia representativo foi
+resolvido e o estado final das térmicas herdado.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Regra padrão contra estado herdado do dia anterior.}
+\tabcondicoes
+\end{table}
+
+As partidas absolutas sobem bastante, de 17{,}2 para 26{,}0 no caso A, porque no estado real há menos
+unidades ligadas à meia-noite. Mas \textbf{a redução obtida pelo uso conjunto sobe também, de
+\numredsubase{}\,\% para \numredsuhist{}\,\%}, e a competição fica \emph{mais} forte: a interação vai de
+\numIbase{} para \numIhist{}\,k\$/dia, negativa nos quatro dias. A configuração adotada como padrão é,
+portanto, a conservadora.
+
+\subsection{Baseline dos data centers nos casos A e B}
+
+A carga plana usada nos casos sem flexibilidade é mais suave que um perfil realista de tarefas chegando
+ao longo do dia, o que poderia inflar o valor atribuído à flexibilidade. Foi testado um baseline mais restritivo: as
+mesmas tarefas executadas no site nativo assim que chegam, por ordem de prazo.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Baseline plano contra baseline nativo (k\$/dia).}
+\tabbaseline
+\end{table}
+
+O valor do data center cai de \numdCplano{} para \numdCnativo{}\,k\$, um terço menor. A interação muda de
+magnitude, de $-1{,}3$ para $-2{,}4$\,k\$, mas \textbf{não muda de sinal em nenhum dos quatro dias}. O baseline plano é mantido como principal e este entra como sensibilidade.
+
+\subsection{Custo de migração}
+
+Como a migração entre sites é parte central do conceito de VDC, foram testados metade e o dobro do
+custo.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Sensibilidade ao custo de migração (k\$/dia).}
+\tabmigracao
+\end{table}
+
+O valor do data center varia $+15$ e $-16$\,\%, mas a interação fica em $-0{,}9$ e $-1{,}2$\,k\$ contra
+$-1{,}3$ na base. \textbf{A conclusão não depende desse parâmetro}, que é o de maior arbitrariedade no
+modelo.
+
+\subsection{Estado de carga inicial da VPL}
+
+As baterias operam com estado de carga cíclico: o nível ao fim das 24\,h tem que igualar o do início,
+mas o otimizador escolhe qual é esse nível. Isso dá ao modelo uma liberdade que um operador real não
+tem, já que o estado à meia-noite vem do dia anterior. Para medir o peso dessa hipótese, a grade foi
+repetida com o estado de carga fixado em 50\,\% no início e no fim.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Estado de carga cíclico livre contra ancorado em 50\,\% (k\$/dia).}
+\tabsoc
+\end{table}
+
+O benefício da VPL cai de \numparpar{} para \numsocdB{}\,k\$, 11\,\% menos, e o do uso conjunto de
+\numcustoA{} --- na verdade de 99{,}6 para \numsocdD{}\,k\$. A perda vem toda do dia de vento alto, onde
+a liberdade de começar o dia com a bateria cheia valia 15\,k\$. \textbf{A interação não muda de sinal}:
+vai de \numIbase{} para \numsocI{}\,k\$/dia, ou seja, ancorar o estado inicial torna a competição
+ligeiramente mais forte, não mais fraca. A hipótese cíclica livre é, portanto, otimista quanto ao valor
+absoluto da VPL e conservadora quanto à conclusão do trabalho.
+
+\subsection{Carga e descarga simultâneas}
+
+Na formulação livre, nenhuma restrição impede que uma bateria carregue e descarregue na mesma hora; em
+tese, ela poderia dissipar energia nas perdas para reduzir curtailment. A verificação \emph{a posteriori}
+separa dois casos. Nas baterias da VPL, que pagam degradação de 2\,\$/MWh, a sobreposição é exatamente
+nula em todas as soluções: dissipar nunca compensa. Já a unidade de armazenamento nativa do RTS-GMLC
+(50\,MW no barramento 313), que não tem custo de degradação no \emph{deck}, opera com sobreposição em 3
+a 6 horas por dia, dissipando de 18 a 23\,MWh/dia nas perdas para absorver excedente renovável. O efeito
+é praticamente idêntico nos quatro casos (151\,MWh/dia em A e B, 141 em C e 119 em D), então se cancela
+nas diferenças: responde por 32 dos 2\,407\,MWh de redução de curtailment atribuída ao uso conjunto, ou
+1{,}3\,\%, e por cerca de 2\,\$/dia no custo. Não altera nenhuma conclusão, mas é uma degenerescência do
+sistema teste que vale registrar.
+
+% =====================================================================
+\section{Conclusões}
+
+\subsection{Resultado principal}
+
+O enunciado mais preciso do resultado não é ``VPL e VDC são substitutos'', mas:
+
+\textbf{Dois recursos de flexibilidade capazes de aliviar o mesmo gargalo competem economicamente mesmo
+quando entregam serviços operacionais bem diferentes} --- um reduz sobretudo curtailment, o outro sobretudo
+ciclagem térmica.
+O enunciado é sustentado pelos dados e tem consequência prática direta para dimensionamento.
+
+\subsection{Implicações práticas}
+
+\begin{enumerate}
+\item \textbf{Para o planejamento, que é o terreno da tese}: dimensionar armazenamento de corredor e carga
+flexível de forma independente superestima o benefício conjunto --- de 1 a 11\,\% no porte base, e até um
+quarto do benefício da carga flexível quando a bateria é grande. A métrica $I$, que sai de quatro rodadas
+day-ahead, é um número que um estudo de dimensionamento poderia incorporar.
+\item \textbf{Para a conexão de data centers}: ligá-los como carga firme joga fora um recurso de redução
+de ciclagem térmica que, nas minhas simulações, equivale ao de uma bateria de 200\,MW. Ressalva: as tarefas são sintéticas.
+\item \textbf{Para quem modela}: reportar o ruído do gap sempre que medir interação entre recursos.
+\end{enumerate}
+
+\subsection{Resultados contrários à expectativa}
+
+\begin{itemize}
+\item O pareamento vale pouco na operação: quase todo o benefício vem da localização das baterias nos
+terminais corretos, que é justamente o que a tese resolve.
+\item O data center atua principalmente sobre a ciclagem, mas sua economia \emph{monetária} vem três quartos de
+combustível e só um quarto de custo de partida, porque as unidades que ele desliga são turbinas a gás
+baratas. O benefício de ciclagem é real, mas subvalorizado pelo objetivo econômico convencional.
+\item O spread de preço não colapsa, se desloca.
+\end{itemize}
+
+% =====================================================================
+\section{Limitações}
+
+\begin{itemize}
+\item Determinístico e sem segurança N-1; a incerteza aparece só por análise de sensibilidade.
+\item Quatro dias representativos mais doze mensais, não um ano completo.
+\item As tarefas são tratadas como divisíveis e interrompíveis, o que é um limite superior da
+flexibilidade real.
+\item Os data centers são sintéticos em tamanho, PUE e perfil de carga.
+\item Economia \emph{operacional}, sem custo de investimento. Responde ``quanto vale operar'', não ``vale
+a pena instalar''.
+\end{itemize}
+
+% =====================================================================
+\section{Pontos para discussão}
+
+O modelo está implementado em PyPSA, com cerca de 3\,700 linhas de código próprio, tudo reproduzível por
+um \texttt{Makefile}, e com cinco testes automatizados. Os resultados deste relatório saem todos do mesmo
+arquivo de métricas, sem nenhum número digitado à mão.
+
+Pontos para discussão:
+
+\begin{enumerate}
+\item \textbf{O enquadramento.} Dado que o pareamento explica só 4\,\% do benefício, faz sentido continuar
+falando em ``Virtual Power Line'', ou seria mais honesto falar em ``armazenamento nos terminais do
+corredor''? A opção que considero mais adequada é manter VPL, pela conexão com a linha do grupo e porque a regra da
+tese é testada, mas gostaria da sua avaliação.
+\item \textbf{A regra de chaveamento custar de 2 a 2{,}4\,\%.} O resultado pode ser lido como crítica ao
+trabalho do Flávio, o que não é a intenção. Mantenho o enquadramento como custo de oportunidade de um
+protocolo simples em modelo idealizado, ou o senhor sugere outro tratamento?
+\item \textbf{O dia de referência.} As tabelas e figuras usam o dia de vento alto, onde o mecanismo do corredor é mais visível. O dia mediano tem apenas uma hora de saturação e não evidenciaria o mecanismo. Concorda com a escolha?
+\item \textbf{O próximo passo.} A extensão natural é o UC estocástico, para verificar se a
+competição se mantém sob incerteza. A alternativa é aplicar ao sistema brasileiro com dados reais. Qual
+das duas é mais útil para a tese?
+\end{enumerate}
+
+\end{document}

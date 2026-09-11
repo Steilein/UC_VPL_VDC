@@ -77,8 +77,7 @@ make grid SOLVER=gurobi        # grade completa (4 dias x 4 casos x 7 eixos)
 make cross SOLVER=gurobi       # sensibilidade cruzada VPL x f_d (16 casos D extras, fig8)
 make extra SOLVER=gurobi       # decomposição do VPL, dias mensais, condições iniciais, baseline, migração
 make leituras SOLVER=gurobi    # VPL de 400 MW nas três leituras (emergente/explícita/dedicada)
-make relatorio                 # tabelas e números do relatório em português (docs/relatorio/)
-                               #   o texto-fonte do relatório é interno e não é distribuído
+make relatorio                 # relatório em português: tabelas, números e PDF (docs/relatorio/)
 make metrics                   # recalcula metrics.csv e summary.md a partir dos .nc
 make figures                   # figures/fig1..fig9 (PLOTS_LANG=en python src/plots.py -> figures/en/)
 make test                      # pytest
