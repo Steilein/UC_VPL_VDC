@@ -36,7 +36,9 @@ Solvers: **HiGHS** (instalado com `highspy`) para desenvolvimento e validação;
 **Gurobi** para a grade final quando a licença acadêmica estiver ativa
 (`pip install gurobipy` e licença acadêmica). Gap MIP: 0,5 % na depuração com
 HiGHS e **0,05 % na grade final com Gurobi** (config `solver`); `time_limit = 1800 s`.
-A grade HiGHS (gap 0,5 %) está arquivada em `results_highs_gap05/`.
+A grade HiGHS a 0,5 % foi mantida apenas localmente; o que ficou versionado dela são
+as figuras correspondentes, em `figures_highs_gap05/`, e o comparativo de tempos em
+`results/bench_solver.txt`.
 
 ## 2. Estrutura
 
@@ -45,18 +47,21 @@ config/base.yaml        parâmetros do caso base (todas as fases, comentados)
 config/scenarios.yaml   grade de sensibilidades (um eixo por vez) e grade reduzida
 src/rts_import.py       Fase 1  parser RTS-GMLC -> pypsa.Network
 src/layers.py           Fases 2-4  stress_system, scale_vre, limit_corridor, add_vpl, add_vdc
-src/constraints.py      extra_functionality: reserva girante, capacidade por site, VPL explícito
+src/constraints.py      extra_functionality: reserva girante, capacidade e rampa agregada
+                        por site, SOC inicial do VPL, regra de chaveamento (explícita/dedicada)
 src/runner.py           Fase 5  run_case / run_grid (MILP + LP de preços, NetCDF, metrics.csv)
 src/metrics.py          Fase 6  métricas, tabela de valor marginal, summary.md
 src/plots.py            Fase 7  figuras IEEE (PDF vetorial + PNG)
 src/cross_sensitivity.py sensibilidade cruzada VPL x f_d (results/cross_vpl_fd.md, fig8)
-src/extra_runs.py       decomposição do VPL, dias mensais, condições iniciais, baseline, migração
+src/extra_runs.py       decomposição do VPL, dias mensais, condições iniciais, baseline,
+                        migração, SOC inicial, as três leituras da VPL a 400 MW
 src/report_pt.py        tabelas e números do relatório em português (docs/relatorio/)
 src/select_days.py      seleção dos dias representativos (DFT + rampas da demanda líquida)
 src/validate.py         critérios de aceite F1 (rede original) e F2 (saturação do corredor)
 src/common.py           utilidades (config, solver options)
 tests/test_model.py     testes mínimos (parser/lpf, escalonamento, VDC, VPL explícito)
-results/                NetCDF por cenário, metrics.csv, summary.md, relatórios F1/F2/dias
+results/                metrics.csv, summary.md, relatórios F1/F2/dias (os NetCDF por
+                        cenário não são versionados; regere com os alvos do Makefile)
 figures/                fig1..fig9 (.pdf e .png); figures/en/ = versão em inglês para o artigo
 paper/main.tex          artigo IEEE (GTD LA) com resultados da grade Gurobi
 ```
@@ -68,10 +73,12 @@ make validate                  # F1: results/base_validation.nc + results/F1_val
 make days                      # results/days_report.md (confirmar em config/base.yaml)
 make corridor                  # F2: caso A nos 4 dias + results/F2_corridor.md
 make grid SOLVER=highs QUICK=1 # grade reduzida (2 dias x 4 casos x eixo VRE)
-make grid SOLVER=gurobi        # grade completa (4 dias x 4 casos x 6 eixos ~ 116 resoluções)
+make grid SOLVER=gurobi        # grade completa (4 dias x 4 casos x 7 eixos)
 make cross SOLVER=gurobi       # sensibilidade cruzada VPL x f_d (16 casos D extras, fig8)
 make extra SOLVER=gurobi       # decomposição do VPL, dias mensais, condições iniciais, baseline, migração
-make relatorio                 # relatório em português com todos os casos (docs/relatorio/relatorio.pdf)
+make leituras SOLVER=gurobi    # VPL de 400 MW nas três leituras (emergente/explícita/dedicada)
+make relatorio                 # tabelas e números do relatório em português (docs/relatorio/)
+                               #   o texto-fonte do relatório é interno e não é distribuído
 make metrics                   # recalcula metrics.csv e summary.md a partir dos .nc
 make figures                   # figures/fig1..fig9 (PLOTS_LANG=en python src/plots.py -> figures/en/)
 make test                      # pytest

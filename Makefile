@@ -47,9 +47,14 @@ corridor:
 grid:
 	$(PY) src/runner.py --grid --solver $(SOLVER) $(QUICKFLAG) $(DAYSFLAG)
 
+# Gera tabelas.tex e numeros.tex a partir de results/metrics.csv. O texto-fonte
+# relatorio.tex e um documento interno e nao e distribuido no repositorio: se ele
+# nao estiver presente, o alvo para depois de gerar as tabelas.
 relatorio:
 	$(PY) src/report_pt.py
-	cd docs/relatorio && pdflatex -interaction=nonstopmode relatorio.tex && pdflatex -interaction=nonstopmode relatorio.tex
+	@test -f docs/relatorio/relatorio.tex \
+	  && (cd docs/relatorio && pdflatex -interaction=nonstopmode relatorio.tex && pdflatex -interaction=nonstopmode relatorio.tex) \
+	  || echo "docs/relatorio/relatorio.tex ausente (documento interno); tabelas e numeros gerados."
 
 cross:
 	$(PY) src/cross_sensitivity.py --solver $(SOLVER)
