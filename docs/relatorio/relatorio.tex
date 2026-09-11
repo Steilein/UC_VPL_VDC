@@ -613,7 +613,7 @@ mas o sinal da competição se mantém ao longo do ano.
 % =====================================================================
 \section{Verificações de robustez}
 
-Como a conclusão é contraintuitiva, seis hipóteses de modelagem que poderiam produzi-la artificialmente
+Como a conclusão é contraintuitiva, sete hipóteses de modelagem que poderiam produzi-la artificialmente
 foram testadas isoladamente.
 
 \subsection{Precisão do solver}
@@ -768,6 +768,44 @@ a liberdade de começar o dia com a bateria cheia valia 15\,k\$. \textbf{A inter
 vai de \numIbase{} para \numsocI{}\,k\$/dia, ou seja, ancorar o estado inicial torna a competição
 ligeiramente mais forte, não mais fraca. A hipótese cíclica livre é, portanto, otimista quanto ao valor
 absoluto da VPL e conservadora quanto à conclusão do trabalho.
+
+\subsection{O requisito de reserva era o mesmo nos quatro casos?}
+
+Esta verificação nasceu de uma observação externa e valeu a pena. O requisito de reserva girante é
+$R_t = 0{,}03\,L_t + 0{,}05\sum_i \bar r_{i,t}$, e $L_t$ é a soma das cargas do modelo. Nos casos A e B o
+data center entra como carga plana e, portanto, conta inteiro em $L_t$. Nos casos C e D a parte flexível
+passa por \emph{links} e não é uma carga: só a parte inflexível conta. Ou seja, \textbf{C e D tinham um
+requisito de reserva menor que A e B}, e parte do benefício atribuído à flexibilidade podia ser, na
+verdade, benefício de uma política de reserva mais frouxa.
+
+A diferença medida no dia de vento alto é de 472 para 300\,MW de carga de data center vista pelo
+requisito, ou seja, 172\,MW a menos, que a 3\,\% dão cerca de 5\,MW de reserva a menos, contra um $R_t$
+médio de 378\,MW. É pouco, 1{,}4\,\%, mas o argumento de um revisor não seria sobre a magnitude e sim
+sobre a assimetria existir.
+
+Implementei então a opção \texttt{reserve.common\_reference}, que soma de volta o equivalente plano da
+energia flexível em C e D, igualando $R_t$ nos quatro casos, e reresolvi C e D nos quatro dias.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Grade base contra requisito de reserva idêntico nos quatro casos (k\$/dia).}
+\tabreserva
+\end{table}
+
+O efeito existe, mas é pequeno. O valor do data center cai de \numdCplano{} para
+\numdCresref{}\,k\$/dia, ou 1{,}6\,\%, bem dentro do ruído do gap, que é de 2{,}1 a 2{,}3\,k\$. O
+benefício conjunto cai de 99{,}6 para \numdDresref{}, e \textbf{a interação fica praticamente igual}, de
+\numIbase{} para \numIresref{}\,k\$/dia, sem mudar de sinal em nenhum dos quatro dias.
+
+Onde o efeito aparece de verdade é nas partidas, que é justamente a métrica em que o data center mais
+contribui. A redução de partidas do uso conjunto cai de \numredsubase{} para \numredsuDresref{}\,\%. Ou
+seja, \textbf{cerca de 3 pontos percentuais dos \numredsubase{}\,\% vinham do requisito de reserva mais
+folgado}, e não da flexibilidade em si. É pouco, uns 7\,\% do que se atribuía ao recurso, mas é honesto
+reportar.
+
+A conclusão do trabalho não muda, e agora existe o número para responder a quem perguntar. Mantive a
+grade base como principal, porque ela representa a comparação operacionalmente correta, na qual carga
+adiável de fato não precisa ser coberta por reserva girante, e esta entra como sensibilidade.
 
 \subsection{Carga e descarga simultâneas}
 

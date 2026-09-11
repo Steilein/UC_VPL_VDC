@@ -67,6 +67,20 @@ def add_spinning_reserve(n: pypsa.Network, sns: pd.Index, cfg: dict) -> None:
     # Requisito R_t
     load_t = n.get_switchable_as_dense("Load", "p_set", sns).sum(axis=1)
     vre_t = vre_available(n).reindex(sns).sum(axis=1)
+
+    # Nos casos A e B a carga flexivel do data center entra como Load plana e,
+    # portanto, conta em L_t; nos casos C e D ela passa por Links e nao conta.
+    # Com ``reserve.common_reference`` o requisito usa a mesma carga de
+    # referencia nos quatro casos, somando de volta o equivalente plano da
+    # energia flexivel. Isola o valor da flexibilidade do efeito de a carga
+    # flexivel nao gerar requisito de reserva.
+    if r.get("common_reference", False):
+        meta = n.meta.get("vdc", {})
+        if meta.get("mode") == "flexible":
+            e_elec = sum(float(w["E_it_mwh"]) * float(meta["sites"][w["native"]]["pue"])
+                         for w in meta["workloads"])
+            load_t = load_t + e_elec / len(sns)
+
     req = float(r["load_fraction"]) * load_t + float(r["vre_fraction"]) * vre_t
     rhs = _by_snapshot(req, sns)
 

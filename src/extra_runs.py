@@ -211,6 +211,29 @@ def run_leituras400(cfg: dict, solver: str) -> None:
                          name=name, tags={"axis": "vpl_mode_size", "variation": tag}, **kw)
 
 
+def run_reserve_ref(cfg: dict, solver: str) -> None:
+    """C e D com o mesmo requisito de reserva dos casos A e B.
+
+    Em A e B a carga flexivel do data center entra como Load plana e conta em
+    L_t; em C e D ela passa por Links e nao conta, o que torna R_t menor nesses
+    casos. Esta sensibilidade soma de volta o equivalente plano, igualando R_t
+    nos quatro casos, para separar o valor da flexibilidade do efeito de a carga
+    flexivel nao gerar requisito de reserva. A e B nao mudam (nao tem Links VDC).
+    """
+    from runner import run_case
+
+    rdir = results_dir(cfg)
+    for day in cfg["days"]:
+        for case, layers in (("C", {"VDC"}), ("D", {"VPL", "VDC"})):
+            name = f"{day}__{case}__resref"
+            if (rdir / f"{name}.nc").exists():
+                continue
+            run_case(day, layers=layers, solver=solver, cfg=cfg,
+                     overrides={"reserve.common_reference": True},
+                     name=name, tags={"axis": "reserve_ref", "variation": "resref"},
+                     **_base_kw(cfg))
+
+
 def report(cfg: dict) -> None:
     df = pd.read_csv(results_dir(cfg) / "metrics.csv").set_index("scenario")
     lines = ["# Resoluções adicionais — decomposição do VPL e dias mensais\n"]
@@ -367,6 +390,8 @@ def main(argv=None):
     ap.add_argument("--history", action="store_true")
     ap.add_argument("--migcost", action="store_true")
     ap.add_argument("--soc", action="store_true")
+    ap.add_argument("--resref", action="store_true",
+                    help="C e D com o mesmo R_t de A e B")
     ap.add_argument("--leituras", action="store_true",
                     help="VPL 400 MW nas variantes explícita e dedicada")
     ap.add_argument("--report", action="store_true")
@@ -385,6 +410,8 @@ def main(argv=None):
         run_migcost(cfg, solver)
     if args.soc:
         run_soc(cfg, solver)
+    if args.resref:
+        run_reserve_ref(cfg, solver)
     if args.leituras:
         run_leituras400(cfg, solver)
     report(cfg)

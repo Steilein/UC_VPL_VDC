@@ -10,6 +10,7 @@
 #   make cross SOLVER=gurobi      -> sensibilidade cruzada VPL x f_d (results/cross_vpl_fd.md, fig8)
 #   make extra SOLVER=gurobi      -> decomposicao do VPL, dias mensais, cond. iniciais, baseline, migracao
 #   make leituras SOLVER=gurobi   -> VPL 400 MW nas tres leituras (emergente / explicita / dedicada)
+#   make resref SOLVER=gurobi     -> C e D com o mesmo requisito de reserva de A e B
 #   make relatorio                -> relatorio em portugues (docs/relatorio/relatorio.pdf)
 #   make metrics                  -> Fase 6: recalcula metrics.csv e summary.md a partir dos .nc
 #   make figures                  -> Fase 7: figuras em PDF (figures/)
@@ -33,7 +34,7 @@ ifneq ($(DAYS),)
   DAYSFLAG = --days $(DAYS)
 endif
 
-.PHONY: validate days corridor grid cross extra leituras relatorio metrics figures test all clean
+.PHONY: validate days corridor grid cross extra leituras resref relatorio metrics figures test all clean
 
 validate:
 	$(PY) src/validate.py --phase F1
@@ -61,6 +62,9 @@ extra:
 
 leituras:
 	$(PY) src/extra_runs.py --leituras --solver $(SOLVER)
+
+resref:
+	$(PY) src/extra_runs.py --resref --solver $(SOLVER)
 
 metrics:
 	$(PY) src/metrics.py

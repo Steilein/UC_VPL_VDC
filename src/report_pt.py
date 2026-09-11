@@ -298,6 +298,30 @@ def build(df_all: pd.DataFrame, cfg: dict) -> tuple[dict, dict]:
     N["Ibigexplic"] = _fmt(m13["$I$ explíc."], 1)
     N["Ibigdedic"] = _fmt(m13["$I$ dedic."], 1)
 
+    # ------------------------------------------------- T14: requisito de reserva comum aos 4 casos
+    rows = []
+    for day in DAYS:
+        A, B = cost(day, "A"), cost(day, "B")
+        r = {"dia": DAY_PT[day]}
+        for lbl, tag in (("base", "base"), ("$R$ comum", "resref")):
+            C, D = cost(day, "C", tag), cost(day, "D", tag)
+            r[f"$\\Delta_C$ {lbl}"] = (A - C) / 1e3
+            r[f"$\\Delta_D$ {lbl}"] = (A - D) / 1e3
+            r[f"$I$ {lbl}"] = ((A - D) - ((A - B) + (A - C))) / 1e3
+        rows.append(r)
+    t14 = pd.DataFrame(rows).set_index("dia")
+    t14.loc["média"] = t14.mean(numeric_only=True)
+    T["reserva"] = _tabular(t14, "lrrrrrr", 1, "dia")
+    m14 = t14.loc["média"]
+    N["dCresref"] = _fmt(m14["$\\Delta_C$ $R$ comum"], 1)
+    N["dDresref"] = _fmt(m14["$\\Delta_D$ $R$ comum"], 1)
+    N["Iresref"] = _fmt(m14["$I$ $R$ comum"], 1)
+    suA = df_all.set_index("scenario")
+    su = lambda s: float(suA.loc[s, "startups_total"])
+    N["suDresref"] = _fmt(sum(su(f"{d}__D__resref") for d in DAYS) / len(DAYS), 1)
+    N["redsuDresref"] = _fmt(100 * (1 - sum(su(f"{d}__D__resref") for d in DAYS)
+                                    / sum(su(f"{d}__A__base") for d in DAYS)), 0)
+
     # ---------------------------------------------------------------- números soltos
     g = df_all[df_all["axis"] == "base"]
     for c in "ABCD":

@@ -148,3 +148,5 @@ reserve:
   load_fraction: 0.03            # R_t = 0,03 x carga_t + 0,05 x VRE_disponível_t
   vre_fraction: 0.05
   from_flex: false               # true => VDC e VPL contribuem para a reserva (sensibilidade)
+  common_reference: false       # true = mesmo R_t nos quatro casos (soma de volta o
+                                # equivalente plano da carga flexivel do VDC em C e D)

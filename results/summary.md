@@ -1,6 +1,6 @@
 # Resumo dos resultados — UC day-ahead com VPL e VDC
 
-Cenários resolvidos: **320**. Solver: gurobi. Gap MIP máximo: 1.20e-03. Tempo médio MILP: 51 s.
+Cenários resolvidos: **328**. Solver: gurobi. Gap MIP máximo: 1.20e-03. Tempo médio MILP: 50 s.
 
 ## 1. Valor marginal e complementaridade (custo total, $)
 
