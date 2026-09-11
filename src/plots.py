@@ -181,6 +181,14 @@ def fig2_dispatch(nA: pypsa.Network, nD: pypsa.Network, fdir: Path) -> None:
         ax.step(h, load.values, where="mid", color=INK, lw=1.0, label=T("Carga"))
         ax.set_xlim(-0.5, 23.5); ax.set_xticks([0, 6, 12, 18, 23]); ax.set_xlabel(T("Hora"))
         ax.text(0.02, 0.97, tag, transform=ax.transAxes, va="top", fontsize=7)
+        # O total precisa estar escrito: a diferenca de curtailment entre A e D e de
+        # ~8 %, pequena demais para ser lida na area hachurada.
+        vre_disp = float(df["Eólica"].sum() + df["Solar"].sum())
+        avail = float(curt.sum()) + vre_disp
+        pct = 100 * float(curt.sum()) / avail if avail > 0 else float("nan")
+        ax.text(0.98, 0.97, T("curtailment") + f": {curt.sum()/1e3:.1f} GWh ({pct:.0f} %)",
+                transform=ax.transAxes, va="top", ha="right", fontsize=6.5,
+                color=PALETTE[6])
     axes[0].set_ylabel(T("Potência (MW)"))
     axes[0].set_ylim(0, None)
     axes[1].legend(loc="upper center", bbox_to_anchor=(-0.1, -0.22), ncol=6, fontsize=6, handlelength=1.4)
