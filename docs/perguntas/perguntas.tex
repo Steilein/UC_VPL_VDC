@@ -1,0 +1,272 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage{lmodern}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage[colorlinks=false,hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+
+\setlist{itemsep=2pt,topsep=3pt}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small Perguntas prováveis --- UC day-ahead com VPL e VDC}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% Pergunta destacada + resposta em parágrafo normal
+\newcounter{perg}
+\newcommand{\pq}[1]{\medskip\refstepcounter{perg}%
+  \noindent\textbf{\theperg.\ #1}\par\nopagebreak\vspace{2pt}\noindent\ignorespaces}
+
+\title{\vspace{-1.2cm}Perguntas prováveis do orientador e respostas\\
+\large Co-otimização de Virtual Power Lines e Virtual Data Centers\\
+no Unit Commitment day-ahead}
+\author{Guilherme Steilein \\ \small Doutorado --- PPGEE-UFPR}
+\date{\today}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\noindent
+Trinta perguntas que considero prováveis, agrupadas por tema, com a resposta
+curta que pretendo dar e o número que a sustenta. As que considero mais difíceis
+são a 5, a 14, a 18 e a 26.
+
+% =====================================================================
+\section{Enquadramento e relação com a tese}
+
+\pq{Por que juntar VPL e Virtual Data Center no mesmo modelo?}
+Porque os dois aliviam o mesmo gargalo por caminhos opostos: a bateria move
+energia no tempo, o data center move carga no espaço e no tempo. Cada um foi
+estudado isoladamente, mas se eles se somam ou se anulam parcialmente é uma
+pergunta em aberto, e a resposta muda o dimensionamento. É a pergunta que o
+artigo responde.
+
+\pq{O que exatamente é a métrica $I$ e por que essa definição?}
+$I = \Delta_D - (\Delta_B + \Delta_C)$, isto é, o benefício do uso conjunto menos
+a soma dos benefícios isolados. Negativo significa que juntos entregam menos que
+a soma, ou seja, competem. É uma diferença de quatro objetivos de MILP, o que
+exige cuidado numérico, mas fica na mesma unidade dos benefícios e pode ser
+comparada diretamente com o ruído do gap do solver, o que uma razão não
+permitiria.
+
+\pq{A VPL do artigo é a VTL da tese?}
+Não exatamente, e isso está explícito no texto. A tese define a VTL pela regra:
+cada armazenamento opera permanentemente em carga ou descarga, conforme o estágio
+de demanda líquida e o sentido do fluxo, e não presta outro serviço. No artigo
+essa é a variante \emph{dedicada}. A formulação padrão é a \emph{emergente}, em
+que as baterias são livres e o comportamento de linha virtual, se houver, emerge
+da localização e dos preços.
+
+\pq{Se o pareamento explica só 4\,\% do benefício, o conceito de VPL não perde sentido?}
+Não, mas muda de lugar. Cada bateria sozinha vale 37,6 e 35,9\,k\$/dia, e o par
+vale 76,6, então o pareamento acrescenta 4\,\%. A leitura é que quase todo o valor
+vem de \emph{onde} o armazenamento está, e é justamente a localização que a tese
+resolve. O que os números indicam é que, uma vez bem localizadas, as baterias
+entregam o benefício sem coordenação explícita, ao menos num modelo determinístico
+e sem contingências.
+
+% =====================================================================
+\section{Modelagem}
+
+\pq{Por que a regra de chaveamento da tese \emph{custa} dinheiro em vez de agregar?}
+Porque ela proíbe a bateria de arbitrar contra o sentido do fluxo nas horas
+estagiadas. O benefício cai de 76,6 para 44,3\,k\$/dia na variante explícita e
+para 40,0 na dedicada. Isso não é um defeito da regra: é o preço de um protocolo
+executável pelo operador sem rodar um UC completo, com comportamento de
+transferência garantido. Num modelo com contingências ou incerteza, essa garantia
+pode valer mais que a arbitragem livre.
+
+\pq{Sob a regra estrita, o que acontece com a bateria de montante?}
+No dia de vento alto ela fica parada as 24 horas. O fluxo no corredor nunca
+inverte, e com o sentido fixo a regra só permite que ela carregue nas horas de
+alto uso e descarregue nas de baixo uso, o inverso do que a economia pede, porque
+o excedente renovável de montante ocorre ao meio-dia. Nos outros três dias ela
+opera de 5 a 12 horas.
+
+\pq{Como o data center é modelado?}
+Por tarefa, não por orçamento agregado de energia. Cada tarefa tem energia,
+janela de execução, conjunto de sites viáveis e custo de migração assimétrico. No
+PyPSA, cada tarefa é um barramento virtual alimentado por um \emph{link} de cada
+site elegível, com eficiência $1/\mathrm{PUE}$, e terminado por um \emph{store}
+cuja energia mínima salta no prazo. Isso separa por construção a flexibilidade
+temporal da espacial.
+
+\pq{Por que existe a restrição de rampa por tarefa, a Eq.~(10)?}
+Ela veio do limite de rampa nativo do \emph{link} do PyPSA, mas não é redundante:
+está ativa nas 168 instâncias com data center e em 8,7\,\% dos pares
+tarefa--site por hora, um terço deles fora da borda da janela. Como altera a
+região factível, entrou na formulação com parâmetro próprio, $\Delta^w_d$, e
+justificativa física: o provisionamento é limitado por fluxo de migração, não só
+no agregado.
+
+\pq{As tarefas são divisíveis e interrompíveis. Isso não é otimista demais?}
+É otimista, e está declarado como limite superior. Tarefas não interrompíveis
+exigiriam binárias de ativação e dariam menos flexibilidade. Como o resultado
+principal é que o data center \emph{compete} com a bateria, um modelo mais
+restritivo tenderia a reduzir o benefício dele e, portanto, a competição, não a
+inverter o sinal.
+
+% =====================================================================
+\section{Comparabilidade entre os casos}
+
+\pq{Como garantir que os casos A/B e C/D são comparáveis?}
+Nos casos sem flexibilidade os data centers continuam no sistema, como carga
+plana, consumindo exatamente a mesma energia diária. Sem essa equalização, a
+comparação mediria o valor de \emph{retirar carga} e não o valor da
+flexibilidade. Esse cuidado vale cerca de 40\,\% do valor atribuído ao data
+center: o primeiro código tinha as energias desiguais e inflava $\Delta_C$.
+
+\pq{O requisito de reserva era o mesmo nos quatro casos?}
+Não era, e isso foi testado. Em A e B a carga flexível entra como carga plana e
+conta no requisito; em C e D ela passa por \emph{links} e não conta. Igualando o
+requisito nos quatro casos, $\Delta_C$ cai de 24,3 para 23,9\,k\$/dia, dentro do
+ruído, e $I$ vai de $-1{,}3$ para $-1{,}4$. A redução de partidas, porém, cai de
+41 para 38\,\%: cerca de 3 pontos vinham da reserva mais folgada.
+
+\pq{Por que o caso base não deixa os recursos flexíveis proverem reserva?}
+Por conservadorismo. Com $\phi=1$ o efeito é de 0,01 a 0,2\,\%, praticamente
+nulo, porque a reserva raramente é restritiva depois que o data center já achatou
+a demanda líquida. Além disso, essa contribuição é um \emph{headroom proxy}: o
+modelo não verifica se a tarefa interrompida ainda cumpre o prazo depois do
+evento, nem se o estado de carga sustenta o compromisso da bateria.
+
+\pq{E o baseline plano dos casos A e B, não favorece o data center?}
+Favorece, e há a sensibilidade. Com as mesmas tarefas rodando no site nativo por
+ordem de prazo, em vez de carga plana, $\Delta_C$ cai um terço, de 24,3 para
+15,9\,k\$/dia. A interação muda de magnitude, de $-1{,}3$ para $-2{,}4$, mas não
+muda de sinal em nenhum dos quatro dias. Mantive o plano como principal e este
+como sensibilidade.
+
+\pq{Por que o estado de carga inicial das baterias é livre?}
+Porque o ciclo é fechado e o modelo escolhe o nível. É uma liberdade que o
+operador real não tem. Ancorando em 50\,\%, o benefício da VPL cai 11\,\%, de
+76,6 para 68,0\,k\$/dia, mas a interação fica \emph{mais} negativa, de $-1{,}3$
+para $-1{,}7$. Ou seja, a hipótese é otimista quanto ao valor da VPL e
+conservadora quanto à conclusão.
+
+% =====================================================================
+\section{Dados, sistema teste e método numérico}
+
+\pq{De onde vem o sistema teste e a configuração estressada?}
+RTS-GMLC, 73 barras em três áreas, com a modificação da tese e do artigo de 2026:
+mais 40\,\% de carga na Área 2 e geração renovável equivalente na Área 3, nos nós
+candidatos do planejamento. O corredor de estudo é o 318--223, de 500\,MW.
+
+\pq{Por que quatro dias e não o ano inteiro?}
+Por custo computacional e por escolha metodológica: são os quatro dias que a tese
+usa, selecionados por critérios de demanda líquida. Mas eles são extremos, então
+rodei também doze dias úteis medianos, um por mês.
+
+\pq{E os dias mensais confirmam?}
+Sim, com magnitude menor, como esperado. O custo cai 4,6\,\%, o curtailment
+15\,\% e as partidas 47\,\%, contra 6,2, 12 e 41\,\% nos quatro dias. A interação
+é negativa em 9 dos 12 dias, com média de $-2{,}7$\,k\$/dia. O sinal se mantém ao
+longo do ano.
+
+\pq{Por que 0,05\,\% de gap? Não é rigor excessivo?}
+Não, é o que torna o resultado mensurável. $I$ é a diferença de quatro objetivos,
+e os erros de otimalidade se somam em vez de se cancelar. Com a tolerância usual
+de 0,5\,\%, cada caso custa cerca de 1,56\,M\$/dia, o erro admitido chega a
+7,8\,k\$ por caso e a $\pm$15,6\,k\$ na soma dos quatro, maior que qualquer
+interação medida. A 0,05\,\% o ruído cai para $\pm$1,6\,k\$.
+
+\pq{O que teria acontecido se você tivesse ficado com 0,5\,\%?}
+O sinal de $I$ seria inconclusivo em todas as combinações da grade, e chegou a
+inverter entre as duas tolerâncias em cinco delas. A conclusão do trabalho não
+existiria. É por isso que trato o ruído do gap como contribuição metodológica e
+o reporto ao lado de cada interação.
+
+\pq{Por que Gurobi e não HiGHS?}
+Os dois aceitam 0,05\,\%; a diferença é o custo computacional. No caso A, o HiGHS
+leva 80,5\,s contra 9,3\,s do Gurobi, 8,8 vezes mais. A licença acadêmica da UFPR
+foi o que tornou viável rodar a grade inteira, 328 cenários, em algumas horas.
+Mediana de 10\,s por caso; cinco instâncias pararam no limite de 1800\,s, com
+gaps de 0,05 a 0,12\,\%.
+
+% =====================================================================
+\section{Resultados}
+
+\pq{Qual é o mecanismo da competição, se os dois fazem coisas diferentes?}
+Eles precisam do mesmo insumo escasso: a folga do corredor nas horas em que ele
+não está saturado. A bateria de jusante só carrega com energia que atravessa o
+corredor; a tarefa migrada para a Área 3 só tem valor porque consome ali a
+energia que seria cortada. Quando um ocupa essa folga, sobra menos para o outro.
+Nos dados, no caso conjunto o deslocamento temporal do data center e a capacidade
+virtual da VPL ficam ambos menores que nos casos isolados.
+
+\pq{Por que a competição é mais forte a 30\,\% de renovável e não a 70\,\%?}
+Porque a 30\,\% o corredor satura em poucas horas, quatro em média, e os dois
+disputam a mesma janela curta: o benefício conjunto fica 11,1\,\% abaixo da soma.
+A 50 e 70\,\% ele satura de 9 a 11 horas, há mais espaço para atuarem em horas
+diferentes, e a interação encolhe sem mudar de sinal. A hipótese inicial era a
+oposta, e os dados não a sustentam.
+
+\pq{No porte base a interação está dentro do ruído. Isso não enfraquece o artigo?}
+Enfraqueceria se eu afirmasse mais do que os dados mostram, e é por isso que o
+resumo diz explicitamente que no dimensionamento-base o efeito é da ordem da
+incerteza numérica. O sinal mensurável aparece com VPL grande: a 400\,MW a
+interação é $-6{,}7$\,k\$/dia, ou 28\,\% do benefício do data center, e a 650\,MW
+chega a $-16{,}3$, cerca de 67\,\%. A mensagem prática é para dimensionamentos
+grandes.
+
+\pq{A conclusão depende de você ter deixado as baterias livres?}
+Não. Repeti a comparação a 400\,MW nas três leituras. A interação é $-6{,}7$ na
+livre, $-3{,}6$ na explícita e $-3{,}0$ na dedicada, e nas duas variantes com
+regra ela é negativa nos quatro dias, contra dois dos quatro na livre. A
+magnitude cai pela metade, porque uma bateria amarrada captura menos da
+oportunidade e por isso também disputa menos. O sentido não muda.
+
+\pq{Por que o data center reduz mais partidas que a bateria?}
+Porque ele achata a demanda líquida na hora certa, concentrando as tarefas
+adiáveis no pico renovável do meio-dia e deslocando 14\,\% da energia de TI
+adiável para outros sites. A bateria tem energia limitada a 4\,h e atua sobre o
+excedente renovável, não sobre a rampa da noite. Nas médias, o data center corta
+7,8 partidas contra 5,5 da VPL de 200\,MW, evitando metade do curtailment e um
+terço do custo que ela evita.
+
+\pq{Qual é a consequência prática para planejamento?}
+Dimensionar armazenamento de corredor e carga flexível de forma independente
+superestima o benefício conjunto: de 1 a 11\,\% no porte base e até dois terços
+do benefício da carga flexível quando a bateria é grande. A métrica $I$ sai de
+quatro rodadas day-ahead e é um número que um estudo de dimensionamento pode
+incorporar.
+
+% =====================================================================
+\section{Limitações e continuidade}
+
+\pq{Quais são as limitações que você declara?}
+Modelo determinístico, sem segurança N-1; quatro dias representativos mais doze
+mensais, não o ano completo; tarefas divisíveis e interrompíveis, o que é limite
+superior da flexibilidade; data centers sintéticos em tamanho, PUE e perfil; e
+economia operacional, sem custo de investimento. O trabalho responde ``quanto
+vale operar'', não ``vale a pena instalar''.
+
+\pq{Os data centers são sintéticos. Isso não fragiliza o resultado?}
+Fragiliza a magnitude, não o sinal. O valor do data center depende da fração
+flexível e da janela: $\Delta_C$ vai de 11,3 a 37,2\,k\$/dia quando $f_d$ passa
+de 0,2 para 0,8, e de 8,0 a 33,2 quando a janela é dividida ou dobrada. Por isso
+reporto a faixa em vez de um número único, e por isso o próximo passo natural é
+dados reais de carga de data center.
+
+\pq{Por que o resultado é contraintuitivo e por que devo acreditar nele?}
+Porque a intuição diz que serviços diferentes se somam. O que os dados mostram é
+que serviço diferente não implica recurso complementar quando o insumo escasso é
+o mesmo. Testei sete hipóteses de modelagem que poderiam produzir o resultado
+artificialmente: precisão do solver, condições iniciais das térmicas, baseline do
+data center, custo de migração, estado de carga inicial, carga e descarga
+simultâneas e simetria do requisito de reserva. Nenhuma inverte o sinal.
+
+\pq{Qual é o próximo passo, UC estocástico ou sistema brasileiro?}
+Os dois são defensáveis e eu gostaria da sua opinião. O estocástico testa se a
+competição se mantém sob incerteza, que é a crítica mais provável de um revisor,
+e conecta com a linha de robustez da tese. O sistema brasileiro com dados reais
+tem mais apelo para a conferência na América Latina e resolve a limitação dos
+data centers sintéticos. Minha inclinação é o estocástico, por ser a extensão
+metodológica mais forte.
+
+\end{document}

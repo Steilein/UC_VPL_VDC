@@ -51,3 +51,7 @@ paper/main_rev.pdf
 results/*log*.txt
 results/grid_*.txt
 results/rerun_*.txt
+
+# Builds do documento de perguntas (o PDF final fica)
+docs/perguntas/perguntas.pdf
+docs/perguntas/build.txt
