@@ -221,7 +221,7 @@ seção~\ref{sec:leituras}.
 \end{enumerate}
 
 Além dessas, o \emph{Link} do PyPSA traz uma rampa própria, que aplica o mesmo $\Delta_d$ a cada par
-tarefa--site individualmente. Ela não é redundante em relação à rampa agregada: medindo as 160
+tarefa--site individualmente. Ela não é redundante em relação à rampa agregada: medindo as 168
 soluções com VDC, fica ativa em todas elas e em 8{,}7\,\% dos pares (par tarefa--site, hora), um terço
 deles fora da borda da janela. O efeito prático é que uma tarefa entra a meia potência na primeira
 hora da sua janela. Por isso ela passou a constar da formulação do artigo como equação própria, e
@@ -404,8 +404,9 @@ a interação encolhe, sem mudar de sinal.
 data center por prazo, tornando-os complementares. \textbf{Os dados não sustentam essa hipótese.}
 \end{itemize}
 
-Olhando as 48 combinações de dia e variação da grade principal, $I$ é negativo em 32 e supera duas vezes
-o ruído do gap em 17 delas, sendo 15 de competição e 2 de complementaridade.
+Olhando as 52 combinações de dia e variação da grade principal em que os quatro casos foram
+resolvidos, $I$ é negativo em 34 e supera duas vezes o ruído do gap em 19 delas, sendo 15 de
+competição e 4 de complementaridade.
 
 \begin{figure}[htbp]
 \centering
@@ -695,7 +696,7 @@ HiGHS com tolerância de 0{,}5\,\%, 13 dos 116 casos pararam \emph{no teto} da t
 otimalidade --- ou seja, já estavam no limite do que aquele solver entregava.
 
 \textbf{Resumo.} Com o HiGHS a 0{,}5\,\% o sinal de $I$ era inconclusivo em \emph{todas} as 48
-combinações, e chegou a inverter entre as duas tolerâncias em cinco delas. A licença acadêmica da UFPR
+combinações da grade de então, e chegou a inverter entre as duas tolerâncias em cinco delas. A licença acadêmica da UFPR
 foi o que tornou viável rodar a grade inteira a 0{,}05\,\% em algumas horas. A lição que levo daqui é
 metodológica: estudos que medem ``sinergia'' entre tecnologias como diferença de objetivos de MILP
 precisam reportar o gap, senão podem estar medindo tolerância de solver. Passei a reportar o ruído ao
