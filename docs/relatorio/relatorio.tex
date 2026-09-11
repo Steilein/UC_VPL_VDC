@@ -238,21 +238,69 @@ de preço em mercado day-ahead: o preço sai com o \emph{commitment} já decidid
 
 \subsection{Modelo dos data centers}
 
-A literatura de UC representa flexibilidade de data center como uma fração agregada da energia diária.
-Aqui a modelagem é \textbf{por tarefa}, o que permite representar prazo e nível de serviço de forma
-explícita. São 18 tarefas por dia: em cada site, duas do tipo \emph{batch} (janela de 8 a
-12 horas, só rodam no site nativo, dão flexibilidade no tempo) e quatro \emph{migráveis} (janela de 2 a
-4 horas, rodam em qualquer site, dão flexibilidade no espaço). Cada tarefa tem sua energia, sua janela e
-um custo de migração assimétrico de 5 a 20\,\$/MWh.
+\textbf{Quantos e onde.} São \numdcnsites{} sites, um por área, nas barras de maior carga de cada uma:
+118 na Área 1, 218 na Área 2 e 318 na Área 3. A escolha da barra 318 não é neutra: é ela que põe o data
+center no terminal de montante do corredor, disputando o mesmo gargalo que a VPL. Sem isso não haveria
+interação para medir.
 
-A implementação em PyPSA usa componentes nativos: cada tarefa é uma barra virtual, alimentada por um
-\emph{link} de cada site elegível (eficiência $1/\mathrm{PUE}$, janela como disponibilidade, custo de
-migração como custo marginal) e terminada por um \emph{store} cuja energia mínima salta para $E_j$ na
-hora do prazo. O prazo passa a ser restrição dura sem nenhuma variável adicional. A única restrição
-escrita manualmente é a capacidade por site.
+\begin{table}[htbp]
+\centering\small
+\caption{Composição dos três sites. A potência de TI é a elétrica dividida pelo PUE.}
+\tabdcsites
+\end{table}
 
-No total, \numvdcit{}\,MWh de TI por dia são adiáveis nos três sites.
+\textbf{Potência e o papel do PUE.} Cada site tem \numdccap{}/\numdcnsites{}\,MW elétricos de capacidade,
+\numdccap{}\,MW no total. O modelo separa potência de TI de potência elétrica: um megawatt de TI puxa
+1{,}30\,MW da rede, e a diferença é refrigeração e perdas. Toda restrição de tarefa é escrita em MW de TI
+e convertida para elétrico ao tocar a rede. Com $f_d = 0{,}5$, metade da capacidade é flexível, o que dá
+\numdcflexit{}\,MW de TI por site; a outra metade entra como carga firme comum.
 
+\textbf{Por que a capacidade flexível não roda cheia.} Existe um fator de utilização de \numdcutil{}, e
+ele é essencial. Com utilização 1{,}0 a carga flexível teria de operar a plena potência as 24 horas e não
+sobraria folga nenhuma para deslocar. \textbf{É a folga que cria a flexibilidade}, não a capacidade. Daí
+a energia diária: \numvdcit{}\,MWh de TI adiáveis, ou \numdcelet{}\,GWh elétricos, mais
+\numdcinflexdia{}\,GWh de carga inflexível, totalizando \numdctotaldia{}\,GWh, cerca de 10\,\% da carga do
+sistema no dia de referência.
+
+\textbf{As tarefas.} São 18 por dia, seis por site, de dois tipos que isolam os dois mecanismos de
+flexibilidade.
+
+\begin{table}[htbp]
+\centering\small
+\caption{As 18 tarefas por tipo. As \emph{batch} só rodam no site nativo e dão flexibilidade no tempo;
+as migráveis rodam nos três sites e, com janela curta, dão flexibilidade no espaço.}
+\tabdctarefas
+\end{table}
+
+Essa separação é deliberada. Modelos de UC que representam o data center como uma fração agregada da
+energia diária não conseguem distinguir deslocamento no tempo de deslocamento no espaço, e são justamente
+esses dois efeitos que se quer medir aqui.
+
+\textbf{Como isso vira um modelo.} Cada tarefa se transforma em três componentes nativos do PyPSA, sem
+nenhuma variável inventada:
+
+\begin{enumerate}
+\item uma \textbf{barra virtual}, que existe só para aquela tarefa;
+\item um \textbf{\emph{link} de cada site elegível} até essa barra, com eficiência $1/\mathrm{PUE}$, custo
+marginal igual ao custo de migração e janela de disponibilidade via \texttt{p\_max\_pu}: fora do intervalo
+entre chegada e prazo, a potência máxima é zero. Escolher por qual \emph{link} a energia passa é escolher
+\emph{onde} a tarefa roda;
+\item um \textbf{\emph{store}} na barra virtual, cuja energia mínima salta para $E_j$ na hora do prazo.
+Isso obriga a tarefa a terminar e permite que ela acumule energia em qualquer ritmo antes disso. Escolher
+o ritmo é escolher \emph{quando} ela roda.
+\end{enumerate}
+
+O prazo passa a ser restrição dura sem nenhuma binária adicional, o que é a razão de o modelo resolver em
+segundos. Quatro restrições governam o conjunto: o prazo, a capacidade do site descontada a carga
+inflexível, a rampa agregada do site e a rampa de cada tarefa, as duas últimas de \numdcrampa{}\,MW de TI
+por hora. O custo de migração vai de 5 a 20\,\$/MWh, é zero no site nativo e é assimétrico entre pares de
+sites, o que impede a solução de migrar tudo de graça.
+
+\textbf{O que o otimizador faz com isso.} No dia de vento alto, caso C, \numvdctemporal{}\,\% da energia
+adiável muda de hora e \numvdcespacial{}\,\% muda de site. O atraso médio das tarefas é de
+\numdcatraso{}\,h e o custo de migração pago no dia é de \numdcmigcusto{}\,k\$. Quando a bateria entra
+junto, no caso D, o deslocamento temporal cai e o espacial sobe um pouco: é a competição pela folga do
+corredor aparecendo no comportamento, não só no custo.
 
 % =====================================================================
 \section{Casos e cenários}

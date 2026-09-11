@@ -46,6 +46,8 @@ def _tabular(df: pd.DataFrame, colfmt: str, dec=1, index_name="") -> str:
 
 
 def build(df_all: pd.DataFrame, cfg: dict) -> tuple[dict, dict]:
+    from common import results_dir
+    cfg_results_dir = results_dir(cfg)
     d = df_all.set_index("scenario")
     T, N = {}, {}
     # Agregações usam só os quatro dias representativos e os eixos da grade
@@ -321,6 +323,59 @@ def build(df_all: pd.DataFrame, cfg: dict) -> tuple[dict, dict]:
     N["suDresref"] = _fmt(sum(su(f"{d}__D__resref") for d in DAYS) / len(DAYS), 1)
     N["redsuDresref"] = _fmt(100 * (1 - sum(su(f"{d}__D__resref") for d in DAYS)
                                     / sum(su(f"{d}__A__base") for d in DAYS)), 0)
+
+    # ------------------------------------------------- T15/T16: composicao dos data centers
+    import pypsa  # local: so este bloco precisa abrir uma rede
+
+    nC = pypsa.Network(cfg_results_dir / f"{DAYS[0]}__C__base.nc")
+    meta = nC.meta["vdc"]
+    sites_m, wls = meta["sites"], meta["workloads"]
+
+    rows = []
+    for k, s in sites_m.items():
+        C, pue, fe = float(s["capacity_mw"]), float(s["pue"]), float(s["flex_mw_elec"])
+        rows.append({"site": k.replace("_", "\\_"), "barra": s["bus"],
+                     "$C_d$ (MW el.)": C, "PUE": pue,
+                     "flex. (MW el.)": fe, "flex. (MW TI)": fe / pue,
+                     "inflex. (MW el.)": C - fe})
+    t15 = pd.DataFrame(rows).set_index("site")
+    T["dcsites"] = _tabular(t15, "lcrrrrr", 1, "site")
+
+    w = pd.DataFrame(wls)
+    w["janela"] = w["deadline"] - w["arrival"] + 1
+    w["tipo"] = np.where(w["janela"] >= 8, "batch (temporal)", "migrável (espacial)")
+    w["nsites"] = w["sites"].apply(len)
+    t16 = w.groupby("tipo").agg(**{
+        "tarefas": ("id", "size"),
+        "energia (MWh TI)": ("E_it_mwh", "sum"),
+        "janela média (h)": ("janela", "mean"),
+        "sites elegíveis": ("nsites", "mean")})
+    # contagens como inteiros e celulas sem sentido na linha de total ficam vazias
+    t16b = pd.DataFrame({
+        "tarefas": t16["tarefas"].astype(int).astype(str),
+        "energia (MWh TI)": [_fmt(v, 1) for v in t16["energia (MWh TI)"]],
+        "janela média (h)": [_fmt(v, 1) for v in t16["janela média (h)"]],
+        "sites elegíveis": [_fmt(v, 0) for v in t16["sites elegíveis"]]},
+        index=t16.index)
+    t16b.loc["total"] = [str(int(t16["tarefas"].sum())),
+                         _fmt(float(t16["energia (MWh TI)"].sum()), 1), "---", "---"]
+    T["dctarefas"] = _tabular(t16b, "lrrrr", 1, "tipo")
+
+    s0 = list(sites_m.values())[0]
+    N["dcnsites"] = str(len(sites_m))
+    N["dccap"] = _fmt(sum(float(s["capacity_mw"]) for s in sites_m.values()), 0)
+    N["dcflexit"] = _fmt(float(s0["flex_mw_elec"]) / float(s0["pue"]), 1)
+    N["dcrampa"] = _fmt(0.5 * float(s0["flex_mw_elec"]) / float(s0["pue"]), 1)
+    N["dcinflexdia"] = _fmt(sum(float(s["capacity_mw"]) - float(s["flex_mw_elec"])
+                                for s in sites_m.values()) * 24 / 1e3, 1)
+    N["dcelet"] = _fmt(float(w["E_it_mwh"].sum()) * float(s0["pue"]) / 1e3, 1)
+    N["dctotaldia"] = _fmt((sum(float(s["capacity_mw"]) - float(s["flex_mw_elec"])
+                                for s in sites_m.values()) * 24
+                            + float(w["E_it_mwh"].sum()) * float(s0["pue"])) / 1e3, 1)
+    N["dcutil"] = _fmt(float(meta.get("flex_utilization", cfg["vdc"]["flex_utilization"])), 2)
+    sw = d.loc[f"{DAYS[0]}__C__base"]
+    N["dcatraso"] = _fmt(sw.vdc_mean_delay_h, 1)
+    N["dcmigcusto"] = _fmt(sw.cost_migration / 1e3, 1)
 
     # ---------------------------------------------------------------- números soltos
     g = df_all[df_all["axis"] == "base"]
