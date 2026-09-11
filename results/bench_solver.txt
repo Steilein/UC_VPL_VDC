@@ -1,0 +1,9 @@
+RESULT A highs  alvo=0.50% ->     9.1s  gap=0.1790%  obj=684,722  optimal
+RESULT A highs  alvo=0.05% ->    80.5s  gap=0.0500%  obj=684,722  optimal
+RESULT A gurobi alvo=0.50% ->     5.4s  gap=0.1354%  obj=684,897  optimal
+RESULT A gurobi alvo=0.05% ->     9.3s  gap=0.0500%  obj=684,722  optimal
+RESULT D highs  alvo=0.50% ->    15.8s  gap=0.2529%  obj=583,185  optimal
+RESULT D highs  alvo=0.05% ->    28.5s  gap=0.0327%  obj=583,177  optimal
+RESULT D gurobi alvo=0.50% ->     7.3s  gap=0.4131%  obj=585,526  optimal
+RESULT D gurobi alvo=0.05% ->     7.7s  gap=0.0127%  obj=583,185  optimal
+BENCH_DONE

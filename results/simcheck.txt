@@ -1,0 +1,2 @@
+casos: 164  máx simultâneo (MW): [(0.0, 'summer_peak__D__w20.nc'), (0.0, 'summer_peak__D__w05.nc'), (0.0, 'summer_peak__D__vre70.nc'), (0.0, 'summer_peak__D__vre30.nc'), (0.0, 'summer_peak__D__vpl650.nc')]
+SIMCHECK DONE

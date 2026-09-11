@@ -1,0 +1,57 @@
+# Ambiente Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Dados de terceiros: clonar conforme README (não redistribuídos)
+data/RTS-GMLC/
+data/Phd_Files/
+
+# Redes resolvidas (NetCDF, ~0,5 MB cada, centenas de arquivos): distribuídas
+# como anexo de release / Zenodo, não versionadas. Os CSV/MD de métricas ficam.
+results/*.nc
+results_highs_gap05/
+results_ab_prebugfix/
+results/*_log.txt
+results/grid_err.txt
+results/grid_pid.txt
+
+# Logs de solver e LaTeX
+gurobi.log
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+paper/overleaf/main.pdf
+paper/overleaf/build.log
+
+# Figuras PNG de conferência (os PDF vetoriais ficam)
+figures/**/*.png
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Resultados da versao anterior a correcao da rampa agregada do site (96 MB,
+# superados pelos de results/): mantidos localmente para conferencia, nao versionados
+results_pre_siteramp/
+
+# Builds intermediarios do LaTeX (o PDF final de cada documento fica)
+docs/relatorio/rel*.pdf
+docs/relatorio/build*.txt
+paper/build*.txt
+paper/main_v2.pdf
+paper/main_rev.pdf
+
+# Relatorio interno em portugues: documento de trabalho com perguntas dirigidas
+# ao orientador e descricao detalhada de tese ainda nao publicada. Para publica-lo,
+# remova esta linha.
+docs/relatorio/
+
+# Logs de execucao do solver (ruidosos, regeneraveis). O benchmark de solver fica.
+results/*log*.txt
+results/grid_*.txt
+results/rerun_*.txt

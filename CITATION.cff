@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+message: >-
+  If you use this code, please cite the conference paper below (preferred) and,
+  optionally, the repository itself.
+title: >-
+  UC-VPL-VDC: day-ahead unit commitment co-optimizing Virtual Power Lines and
+  Virtual Data Centers on the RTS-GMLC system (PyPSA / linopy)
+type: software
+authors:
+  - family-names: Steilein
+    given-names: Guilherme
+    affiliation: Universidade Federal do Paraná (UFPR), Dept. of Electrical Engineering
+  - family-names: Unsihuay-Vila
+    given-names: Clodomiro
+    affiliation: Universidade Federal do Paraná (UFPR), Dept. of Electrical Engineering
+  - family-names: Ferreira
+    given-names: Flavio Arthur Leal
+    affiliation: Universidade Federal do Paraná (UFPR), Dept. of Electrical Engineering
+license: MIT
+repository-code: https://github.com/<ORG-OU-USUARIO>/uc-vpl-vdc
+keywords:
+  - unit commitment
+  - virtual power line
+  - battery energy storage
+  - data center flexibility
+  - spatiotemporal load shifting
+  - renewable curtailment
+  - transmission congestion
+  - PyPSA
+preferred-citation:
+  type: conference-paper
+  title: >-
+    Co-Optimizing Virtual Power Lines and Virtual Data Centers in Day-Ahead Unit
+    Commitment for Thermal-Dominated Systems with High Renewable Penetration
+  authors:
+    - family-names: Steilein
+      given-names: Guilherme
+    - family-names: Unsihuay-Vila
+      given-names: Clodomiro
+    - family-names: Ferreira
+      given-names: Flavio Arthur Leal
+  conference:
+    name: IEEE PES Generation, Transmission and Distribution Conference and Exposition – Latin America (GTD LA)
+  year: 2026
+  notes: Submitted. Update with DOI and pages upon publication.

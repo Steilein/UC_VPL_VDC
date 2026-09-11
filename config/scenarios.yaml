@@ -1,0 +1,56 @@
+# =============================================================================
+# GRADE DE SENSIBILIDADES (Fase 5, §8.2 do brief)
+# -----------------------------------------------------------------------------
+# O runner combina:  dias  x  casos (A, B, C, D)  x  variações de um eixo por vez.
+# Cada variação sobrescreve UM parâmetro do caso base (config/base.yaml); os
+# demais permanecem nos valores base. A variação "base" é sempre incluída.
+#
+# Casos:
+#   A = referência (sem camadas de flexibilidade)
+#   B = A + VPL
+#   C = A + VDC
+#   D = A + VPL + VDC
+# =============================================================================
+
+cases:
+  A: []
+  B: ["VPL"]
+  C: ["VDC"]
+  D: ["VPL", "VDC"]
+
+# Eixos de sensibilidade. A chave de cada variação vira parte do nome do cenário.
+axes:
+  vre_share:                     # penetração VRE (energia disponível / carga)
+    param: vre.target_share
+    values: {vre30: 0.30, vre50: 0.50, vre70: 0.70}
+    base: vre50
+  vpl_size:                      # potência por terminal (4 h)
+    param: vpl.p_nom_mw
+    values: {vpl100: 100, vpl200: 200, vpl400: 400, vpl650: 650}   # 650 MW = dimensionamento do planejamento (tese), limite superior
+    base: vpl200
+    applies_to: ["B", "D"]       # só faz sentido quando a camada VPL está ativa
+  dc_flex:                       # fração flexível f_d
+    param: vdc.flex_fraction
+    values: {f02: 0.2, f05: 0.5, f08: 0.8}
+    base: f05
+    # A e B também: a carga inflexível dos DCs depende de f_d (mesma energia que C/D)
+  window_scale:                  # largura da janela batch
+    param: vdc.workloads.window_scale
+    values: {w05: 0.5, w10: 1.0, w20: 2.0}
+    base: w10
+    # A e B também: a energia dos workloads gerados depende da janela
+  reserve_from_flex:             # flexibilidade conta como reserva
+    param: reserve.from_flex
+    values: {resoff: false, reson: true}
+    base: resoff
+    applies_to: ["B", "C", "D"]
+  vpl_mode:                      # representação do VPL
+    param: vpl.mode
+    values: {emergent: emergent, explicit: explicit, dedicated: dedicated}
+    base: emergent
+    applies_to: ["B", "D"]
+
+# Grade reduzida para depuração com HiGHS (make grid SOLVER=highs QUICK=1):
+quick:
+  days: ["spring_wind", "summer_peak"]
+  axes: ["vre_share"]
